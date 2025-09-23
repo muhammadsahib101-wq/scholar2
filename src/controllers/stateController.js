@@ -1,0 +1,180 @@
+const dotenv = require("dotenv");
+
+dotenv.config();
+
+const imagekit = require("../utils/imageKit");
+const States = require("../models/stateSchema");
+
+function createNewState(request, response) {
+  const { name, slug } = request.body;
+  const userId = request.user.id;
+  if (!request.file) {
+    return response.status(400).json({
+      success: false,
+      message: "Image file is required",
+    });
+  }
+  const image = request.file;
+  imagekit
+    .upload({
+      file: image.buffer,
+      fileName: image.originalname,
+    })
+    .then((uploadResponse) => {
+      const newState = new States({
+        name,
+        slug,
+        image: uploadResponse.url,
+        createdBy: userId,
+        updatedBy: userId,
+      });
+      return newState.save();
+    })
+    .then((createdState) => {
+      return States.findById(createdState._id)
+        .populate("createdBy", "name email")
+        .populate("updatedBy", "name email");
+    })
+    .then((populatedState) => {
+      return response.status(201).json({
+        success: true,
+        message: "New State created successfully",
+        data: populatedState,
+      });
+    })
+    .catch((error) => {
+      return response.status(500).json({
+        success: false,
+        message: "New State could not be created",
+        error: error.message || error,
+      });
+    });
+}
+
+function getAllStates(request, response) {
+  States.find()
+    .sort({ name: 1 })
+    .then((allStates) => {
+      if (allStates.length === 0) {
+        return response.status(404).json({
+          success: false,
+          message: "No states found",
+        });
+      }
+      return response.status(200).json({
+        success: true,
+        length: allStates.length,
+        data: allStates,
+        message: "All states fetched successfully",
+      });
+    })
+    .catch((error) => {
+      return response.status(500).json({
+        success: false,
+        message: error.message || error,
+      });
+    });
+}
+
+function getStateById(request, response) {
+  const { stateId } = request.params;
+  States.findById(stateId)
+    .then((fetchState) => {
+      if (!fetchState) {
+        return response.status(404).json({
+          success: false,
+          message: "State not found with this ID",
+        });
+      }
+      return response.status(200).json({
+        success: true,
+        message: "State fetched successfully",
+        data: fetchState,
+      });
+    })
+    .catch((error) => {
+      return response.status(500).json({
+        success: false,
+        message: error.message || error,
+      });
+    });
+}
+
+function updateStateById(request, response) {
+  const updateData = {};
+  const { name } = request.body;
+  const userId = request.user.id;
+  const { stateId } = request.params;
+  if (name) updateData.name = name;
+  if (userId) updateData.updatedBy = userId;
+  let imageUploadPromise = Promise.resolve(null);
+  if (request.file) {
+    imageUploadPromise = imagekit.upload({
+      file: request.file.buffer,
+      fileName: request.file.originalname,
+    });
+  }
+  imageUploadPromise
+    .then((uploadResponse) => {
+      if (uploadResponse && uploadResponse.url) {
+        updateData.image = uploadResponse.url;
+      }
+      return States.findByIdAndUpdate(stateId, updateData, {
+        new: true,
+        runValidators: true,
+      })
+        .populate("createdBy", "name email")
+        .populate("updatedBy", "name email");
+    })
+    .then((updatedState) => {
+      if (!updatedState) {
+        return response.status(404).json({
+          success: false,
+          message: "State not found with this ID",
+        });
+      }
+      response.status(200).json({
+        success: true,
+        message: "State updated successfully",
+        data: updatedState,
+      });
+    })
+    .catch((error) => {
+      response.status(500).json({
+        success: false,
+        message: error.message || "State could not be updated",
+      });
+    });
+}
+
+function deleteStateById(request, response) {
+  const { stateId } = request.params;
+  States.findByIdAndDelete(stateId)
+    .then((deletedState) => {
+      if (!deletedState) {
+        return response.status(404).json({
+          success: false,
+          message: "State not found with this ID",
+        });
+      }
+      return response.status(200).json({
+        success: true,
+        message: "State deleted successfully",
+        data: deletedState,
+      });
+    })
+    .catch((error) => {
+      return response.status(500).json({
+        success: false,
+        message: error.message || error,
+      });
+    });
+}
+
+module.exports = {
+  createNewState,
+  getAllStates,
+  getStateById,
+  updateStateById,
+  deleteStateById,
+};
