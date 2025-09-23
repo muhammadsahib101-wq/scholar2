@@ -20,9 +20,10 @@ const schemeSchema = new mongoose.Schema(
       type: mongoose.Schema.Types.ObjectId,
       ref: "Category",
       required: true,
+      index: true, // 🔑 index for filtering
     },
     isFeatured: { type: Boolean },
-    slug: { type: String, unique: true, lowercase: true },
+    slug: { type: String, unique: true, lowercase: true, index: true }, // 🔑 fast lookup
     link1: {
       url: { type: String },
       name: { type: String },
@@ -43,9 +44,10 @@ const schemeSchema = new mongoose.Schema(
         type: mongoose.Schema.Types.ObjectId,
         ref: "States",
         required: true,
+        index: true, // 🔑 important for getAllSchemes
       },
     ],
-    publishedOn: { type: Date, default: Date.now },
+    publishedOn: { type: Date, default: Date.now, index: true }, // 🔑 filter/sort
     about: { type: String, required: true },
     objectives: { type: String },
     textWithHTMLParsing: {
@@ -77,8 +79,8 @@ const schemeSchema = new mongoose.Schema(
     disclaimer: {
       description: { type: String },
     },
-    isActive: { type: Boolean, default: true },
-    isDeleted: { type: Boolean, default: false },
+    isActive: { type: Boolean, default: true, index: true }, // 🔑 quick filtering
+    isDeleted: { type: Boolean, default: false, index: true },
     createdBy: {
       type: mongoose.Schema.Types.ObjectId,
       ref: "Users",
@@ -92,5 +94,8 @@ const schemeSchema = new mongoose.Schema(
     timestamps: true,
   }
 );
+
+// Compound index: filter + sort
+schemeSchema.index({ state: 1, category: 1, createdAt: -1 });
 
 module.exports = mongoose.model("Scheme", schemeSchema);
