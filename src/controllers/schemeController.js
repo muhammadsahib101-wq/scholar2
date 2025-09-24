@@ -365,7 +365,7 @@ const getSchemesByState = async (req, res) => {
           from: "schemes",
           let: { stateId: "$_id" },
           pipeline: [
-            { $match: { $expr: { $eq: ["$state", "$$stateId"] } } },
+            { $match: { $expr: { $in: ["$$stateId", "$state"] } } },
             { $count: "count" },
           ],
           as: "schemeStats",
