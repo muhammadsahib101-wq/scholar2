@@ -150,33 +150,83 @@ const getAllSchemes = async (req, res) => {
       });
     }
     const filter = {};
-    if (stateId) filter.state = stateId;
-    if (categoryId) filter.category = categoryId;
-    const [state, category] = await Promise.all([
-      stateSlug ? State.findOne({ slug: stateSlug }).lean() : null,
-      categorySlug ? Category.findOne({ slug: categorySlug }).lean() : null,
-    ]);
-    if (stateSlug && !state)
+    let state, category;
+    if (stateSlug || categorySlug) {
+      [state, category] = await Promise.all([
+        stateSlug
+          ? State.findOne({ slug: stateSlug }).select("_id").lean()
+          : null,
+        categorySlug
+          ? Category.findOne({ slug: categorySlug }).select("_id").lean()
+          : null,
+      ]);
+    }
+    if (stateSlug && !state) {
       return res
         .status(404)
         .json({ success: false, message: "State not found with this slug" });
-    if (categorySlug && !category)
+    }
+    if (categorySlug && !category) {
       return res
         .status(404)
         .json({ success: false, message: "Category not found with this slug" });
+    }
+    if (stateId) filter.state = new mongoose.Types.ObjectId(stateId);
+    if (categoryId) filter.category = new mongoose.Types.ObjectId(categoryId);
     if (state) filter.state = state._id;
     if (category) filter.category = category._id;
-    const [total, schemes] = await Promise.all([
-      Scheme.countDocuments(filter),
-      Scheme.find(filter)
-        .skip(skip)
-        .limit(limit)
-        .sort({ createdAt: -1 })
-        .populate("author", "name email")
-        .populate("state", "name slug")
-        .populate("category", "name slug")
-        .lean(),
+    const schemesQuery = Scheme.aggregate([
+      { $match: filter },
+      { $sort: { createdAt: -1 } },
+      { $skip: skip },
+      { $limit: limit },
+      {
+        $lookup: {
+          from: "users",
+          localField: "author",
+          foreignField: "_id",
+          as: "author",
+        },
+      },
+      { $unwind: "$author" },
+      {
+        $lookup: {
+          from: "states",
+          localField: "state",
+          foreignField: "_id",
+          as: "state",
+        },
+      },
+      {
+        $lookup: {
+          from: "categories",
+          localField: "category",
+          foreignField: "_id",
+          as: "category",
+        },
+      },
+      { $unwind: "$category" },
+      {
+        $project: {
+          schemeTitle: 1,
+          slug: 1,
+          createdAt: 1,
+          excerpt: 1,
+          bannerImage: 1,
+          cardImage: 1,
+          "author._id": 1,
+          "author.name": 1,
+          "state._id": 1,
+          "state.name": 1,
+          "state.slug": 1,
+          "category._id": 1,
+          "category.name": 1,
+          "category.slug": 1,
+        },
+      },
     ]);
+    const countQuery = Scheme.countDocuments(filter);
+    const [schemes, total] = await Promise.all([schemesQuery, countQuery]);
     const responseData = {
       total,
       length: schemes.length,
@@ -184,12 +234,9 @@ const getAllSchemes = async (req, res) => {
       data: schemes,
     };
     await redisClient.set(cacheKey, JSON.stringify(responseData), {
-      EX: 60 * 5,
+      EX: 60 * 30,
     });
-    return res.status(200).json({
-      success: true,
-      ...responseData,
-    });
+    return res.status(200).json({ success: true, ...responseData });
   } catch (error) {
     return res.status(500).json({
       success: false,
