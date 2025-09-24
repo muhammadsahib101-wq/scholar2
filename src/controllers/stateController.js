@@ -1,3 +1,4 @@
+const redisClient = require("../utils/redis");
 const dotenv = require("dotenv");
 
 dotenv.config();
@@ -51,30 +52,40 @@ function createNewState(request, response) {
     });
 }
 
-function getAllStates(request, response) {
-  States.find()
-    .sort({ name: 1 })
-    .then((allStates) => {
-      if (allStates.length === 0) {
-        return response.status(404).json({
-          success: false,
-          message: "No states found",
-        });
-      }
-      return response.status(200).json({
+const getAllStates = async (req, res) => {
+  try {
+    const cacheKey = "states:all";
+    const cachedData = await redisClient.get(cacheKey);
+    if (cachedData) {
+      return res.status(200).json({
         success: true,
-        length: allStates.length,
-        data: allStates,
-        message: "All states fetched successfully",
+        message: "All states fetched from cache.",
+        data: JSON.parse(cachedData),
       });
-    })
-    .catch((error) => {
-      return response.status(500).json({
+    }
+    const queryStart = Date.now();
+    const states = await States.find({}, { _id: 1, name: 1, slug: 1 }).lean();
+    if (!states || states.length === 0) {
+      return res.status(404).json({
         success: false,
-        message: error.message || error,
+        message: "No states found.",
       });
+    }
+    await redisClient.set(cacheKey, JSON.stringify(states), { EX: 60 * 60 });
+    return res.status(200).json({
+      success: true,
+      message: "All states fetched successfully.",
+      data: states,
     });
-}
+  } catch (error) {
+    console.error("❌ Get States Error:", error);
+    return res.status(500).json({
+      success: false,
+      message: "An error occurred while fetching states.",
+      error: error.message || error,
+    });
+  }
+};
 
 function getStateById(request, response) {
   const { stateId } = request.params;

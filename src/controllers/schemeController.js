@@ -250,10 +250,8 @@ const getSchemeBySlug = async (req, res) => {
   try {
     const { slug } = req.params;
     const cacheKey = `scheme:${slug}`;
-    const start = Date.now();
+    const cacheStart = Date.now();
     const cachedData = await redisClient.get(cacheKey);
-    console.log(`Redis get time: ${Date.now() - start}ms`);
-
     if (cachedData) {
       return res.status(200).json({
         success: true,
@@ -270,7 +268,7 @@ const getSchemeBySlug = async (req, res) => {
           localField: "author",
           foreignField: "_id",
           as: "author",
-          pipeline: [{ $project: { name: 1, _id: 0 } }],
+          pipeline: [{ $project: { _id: 0, name: 1, email: 1 } }],
         },
       },
       { $unwind: { path: "$author", preserveNullAndEmptyArrays: true } },
@@ -280,7 +278,7 @@ const getSchemeBySlug = async (req, res) => {
           localField: "category",
           foreignField: "_id",
           as: "category",
-          pipeline: [{ $project: { name: 1, _id: 0 } }],
+          pipeline: [{ $project: { _id: 0, name: 1, slug: 1 } }],
         },
       },
       { $unwind: { path: "$category", preserveNullAndEmptyArrays: true } },
@@ -290,47 +288,48 @@ const getSchemeBySlug = async (req, res) => {
           localField: "state",
           foreignField: "_id",
           as: "state",
-          pipeline: [{ $project: { name: 1, _id: 0 } }],
+          pipeline: [{ $project: { _id: 0, name: 1, slug: 1 } }],
         },
       },
+      { $unwind: { path: "$state", preserveNullAndEmptyArrays: true } },
       {
         $project: {
+          _id: 0,
           schemeTitle: 1,
+          slug: 1,
           bannerImage: 1,
           cardImage: 1,
-          author: 1,
-          category: 1,
-          state: 1,
-          slug: 1,
           excerpt: 1,
           seoTitle: 1,
           seoMetaDescription: 1,
           about: 1,
           objectives: 1,
           textWithHTMLParsing: 1,
-          _id: 0,
+          author: 1,
+          category: 1,
+          state: 1,
+          createdAt: 1,
         },
       },
       { $limit: 1 },
     ]);
-    console.log(`Aggregation time: ${Date.now() - queryStart}ms`);
     if (!scheme || scheme.length === 0) {
       return res.status(404).json({
         success: false,
         message: "Scheme not found.",
       });
     }
-    const schemeObject = scheme[0];
-    await redisClient.set(cacheKey, JSON.stringify(schemeObject), {
+    const schemeData = scheme[0];
+    await redisClient.set(cacheKey, JSON.stringify(schemeData), {
       EX: 60 * 60,
     });
     return res.status(200).json({
       success: true,
       message: "Scheme fetched successfully.",
-      data: schemeObject,
+      data: schemeData,
     });
   } catch (error) {
-    console.error("Get Scheme Error:", error);
+    console.error("❌ Get Scheme Error:", error);
     return res.status(500).json({
       success: false,
       message: "An error occurred while fetching the scheme.",
@@ -522,8 +521,8 @@ const getSchemesByState = async (req, res) => {
           _id: 0,
           stateId: "$_id",
           name: 1,
-          image: 1,
           slug: 1,
+          image: 1,
           totalSchemes: {
             $ifNull: [{ $arrayElemAt: ["$schemeStats.count", 0] }, 0],
           },
@@ -536,12 +535,15 @@ const getSchemesByState = async (req, res) => {
     await redisClient.set(cacheKey, JSON.stringify(results), { EX: 60 * 10 });
     return res.status(200).json({
       success: true,
+      message: "Schemes by state fetched successfully.",
       data: results,
     });
   } catch (error) {
+    console.error("❌ getSchemesByState Error:", error);
     return res.status(500).json({
       success: false,
-      message: error.message || "Something went wrong…",
+      message: "An error occurred while fetching schemes by state.",
+      error: error.message || error,
     });
   }
 };
@@ -575,8 +577,8 @@ const getSchemesByCategory = async (req, res) => {
           _id: 0,
           categoryId: "$_id",
           name: 1,
-          image: 1,
           slug: 1,
+          image: 1,
           totalSchemes: {
             $ifNull: [{ $arrayElemAt: ["$schemeStats.count", 0] }, 0],
           },
@@ -586,12 +588,15 @@ const getSchemesByCategory = async (req, res) => {
     await redisClient.set(cacheKey, JSON.stringify(results), { EX: 60 * 10 });
     return res.status(200).json({
       success: true,
+      message: "Schemes by category fetched successfully.",
       data: results,
     });
   } catch (error) {
+    console.error("❌ getSchemesByCategory Error:", error);
     return res.status(500).json({
       success: false,
-      message: error.message || "Something went wrong…",
+      message: "An error occurred while fetching schemes by category.",
+      error: error.message || error,
     });
   }
 };
