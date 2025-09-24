@@ -211,11 +211,39 @@ const getSchemeBySlug = async (req, res) => {
         data: JSON.parse(cachedData),
       });
     }
-    const scheme = await Scheme.findOne({ slug })
-      .populate("author", "name email")
-      .populate("category", "name")
-      .populate("state", "name")
-      .lean();
+    const scheme = await Scheme.aggregate([
+      { $match: { slug } },
+      {
+        $lookup: {
+          from: "users",
+          localField: "author",
+          foreignField: "_id",
+          as: "author",
+          pipeline: [{ $project: { name: 1, _id: 0 } }],
+        },
+      },
+      { $unwind: "$author" },
+      {
+        $lookup: {
+          from: "categories",
+          localField: "category",
+          foreignField: "_id",
+          as: "category",
+          pipeline: [{ $project: { name: 1, _id: 0 } }],
+        },
+      },
+      { $unwind: "$category" },
+      {
+        $lookup: {
+          from: "states",
+          localField: "state",
+          foreignField: "_id",
+          as: "state",
+          pipeline: [{ $project: { name: 1, _id: 0 } }],
+        },
+      },
+      { $limit: 1 },
+    ]);
     if (!scheme) {
       return res.status(404).json({
         success: false,
