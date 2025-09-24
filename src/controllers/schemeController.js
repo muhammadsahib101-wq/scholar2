@@ -1,3 +1,4 @@
+const redisClient = require("../utils/redis");
 const dotenv = require("dotenv");
 dotenv.config();
 
@@ -137,6 +138,17 @@ const getAllSchemes = async (req, res) => {
     const { stateId, categoryId, stateSlug, categorySlug } = req.query;
     const skip = parseInt(req.query.skip) || 0;
     const limit = parseInt(req.query.limit) || 4;
+    const cacheKey = `schemes:${stateId || ""}:${categoryId || ""}:${
+      stateSlug || ""
+    }:${categorySlug || ""}:skip${skip}:limit${limit}`;
+    const cachedData = await redisClient.get(cacheKey);
+    if (cachedData) {
+      return res.status(200).json({
+        success: true,
+        message: "Schemes fetched from cache.",
+        ...JSON.parse(cachedData),
+      });
+    }
     const filter = {};
     if (stateId) filter.state = stateId;
     if (categoryId) filter.category = categoryId;
@@ -161,18 +173,22 @@ const getAllSchemes = async (req, res) => {
         .limit(limit)
         .sort({ createdAt: -1 })
         .populate("author", "name email")
-        // .populate("createdBy", "name email")
-        // .populate("updatedBy", "name email")
         .populate("state", "name slug")
         .populate("category", "name slug")
         .lean(),
     ]);
-    return res.status(200).json({
-      success: true,
+    const responseData = {
       total,
       length: schemes.length,
       message: "Schemes fetched successfully",
       data: schemes,
+    };
+    await redisClient.set(cacheKey, JSON.stringify(responseData), {
+      EX: 60 * 5,
+    });
+    return res.status(200).json({
+      success: true,
+      ...responseData,
     });
   } catch (error) {
     return res.status(500).json({
@@ -186,10 +202,17 @@ const getAllSchemes = async (req, res) => {
 const getSchemeBySlug = async (req, res) => {
   try {
     const { slug } = req.params;
+    const cacheKey = `scheme:${slug}`;
+    const cachedData = await redisClient.get(cacheKey);
+    if (cachedData) {
+      return res.status(200).json({
+        success: true,
+        message: "Scheme fetched from cache.",
+        data: JSON.parse(cachedData),
+      });
+    }
     const scheme = await Scheme.findOne({ slug })
       .populate("author", "name email")
-      // .populate("createdBy", "name email")
-      // .populate("updatedBy", "name email")
       .populate("category", "name")
       .populate("state", "name")
       .lean();
@@ -199,6 +222,7 @@ const getSchemeBySlug = async (req, res) => {
         message: "Scheme not found.",
       });
     }
+    await redisClient.set(cacheKey, JSON.stringify(scheme), { EX: 60 * 5 }); // cache for 5 mins
     return res.status(200).json({
       success: true,
       message: "Scheme fetched successfully.",
@@ -358,6 +382,15 @@ function deleteSchemeById(request, response) {
 
 const getSchemesByState = async (req, res) => {
   try {
+    const cacheKey = "schemesByState";
+    const cachedData = await redisClient.get(cacheKey);
+    if (cachedData) {
+      return res.status(200).json({
+        success: true,
+        message: "Data fetched from cache.",
+        data: JSON.parse(cachedData),
+      });
+    }
     const results = await State.aggregate([
       { $sort: { name: 1 } },
       {
@@ -398,7 +431,7 @@ const getSchemesByState = async (req, res) => {
         },
       },
     ]);
-
+    await redisClient.set(cacheKey, JSON.stringify(results), { EX: 60 * 10 });
     return res.status(200).json({
       success: true,
       data: results,
@@ -413,6 +446,15 @@ const getSchemesByState = async (req, res) => {
 
 const getSchemesByCategory = async (req, res) => {
   try {
+    const cacheKey = "schemesByCategory";
+    const cachedData = await redisClient.get(cacheKey);
+    if (cachedData) {
+      return res.status(200).json({
+        success: true,
+        message: "Data fetched from cache.",
+        data: JSON.parse(cachedData),
+      });
+    }
     const results = await Category.aggregate([
       { $sort: { name: 1 } },
       {
@@ -439,7 +481,7 @@ const getSchemesByCategory = async (req, res) => {
         },
       },
     ]);
-
+    await redisClient.set(cacheKey, JSON.stringify(results), { EX: 60 * 10 });
     return res.status(200).json({
       success: true,
       data: results,
