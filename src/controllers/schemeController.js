@@ -161,8 +161,8 @@ const getAllSchemes = async (req, res) => {
         .limit(limit)
         .sort({ createdAt: -1 })
         .populate("author", "name email")
-        .populate("createdBy", "name email")
-        .populate("updatedBy", "name email")
+        // .populate("createdBy", "name email")
+        // .populate("updatedBy", "name email")
         .populate("state", "name slug")
         .populate("category", "name slug")
         .lean(),
@@ -188,8 +188,8 @@ const getSchemeBySlug = async (req, res) => {
     const { slug } = req.params;
     const scheme = await Scheme.findOne({ slug })
       .populate("author", "name email")
-      .populate("createdBy", "name email")
-      .populate("updatedBy", "name email")
+      // .populate("createdBy", "name email")
+      // .populate("updatedBy", "name email")
       .populate("category", "name")
       .populate("state", "name")
       .lean();
@@ -462,8 +462,8 @@ function searchScheme(request, response) {
   }
   Scheme.find({ schemeTitle: { $regex: query, $options: "i" } })
     .populate("author", "name email")
-    .populate("createdBy", "name email")
-    .populate("updatedBy", "name email")
+    // .populate("createdBy", "name email")
+    // .populate("updatedBy", "name email")
     .populate("category", "name")
     .populate("state", "name")
     .then((schemes) => {
