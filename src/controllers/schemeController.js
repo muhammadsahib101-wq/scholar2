@@ -132,47 +132,31 @@ function createNewScheme(request, response) {
     });
 }
 
-function getAllSchemes(req, res) {
-  const { stateId, categoryId, stateSlug, categorySlug } = req.query;
-  const skip = parseInt(req.query.skip) || 0;
-  const limit = parseInt(req.query.limit) || 4;
-  const filter = {};
-  let statePromise = Promise.resolve();
-  let categoryPromise = Promise.resolve();
-  if (stateId) {
-    filter.state = stateId;
-  }
-  if (categoryId) {
-    filter.category = categoryId;
-  }
-  if (stateSlug) {
-    statePromise = State.findOne({ slug: stateSlug }).then((state) => {
-      if (!state) {
-        return Promise.reject({
-          status: 404,
-          message: "State not found with this slug",
-        });
-      }
-      filter.state = state._id;
-    });
-  }
-  if (categorySlug) {
-    categoryPromise = Category.findOne({ slug: categorySlug }).then(
-      (category) => {
-        if (!category) {
-          return Promise.reject({
-            status: 404,
-            message: "Category not found with this slug",
-          });
-        }
-        filter.category = category._id;
-      }
-    );
-  }
-  Promise.all([statePromise, categoryPromise])
-    .then(() => Scheme.countDocuments(filter))
-    .then((total) => {
-      return Scheme.find(filter)
+const getAllSchemes = async (req, res) => {
+  try {
+    const { stateId, categoryId, stateSlug, categorySlug } = req.query;
+    const skip = parseInt(req.query.skip) || 0;
+    const limit = parseInt(req.query.limit) || 4;
+    const filter = {};
+    if (stateId) filter.state = stateId;
+    if (categoryId) filter.category = categoryId;
+    const [state, category] = await Promise.all([
+      stateSlug ? State.findOne({ slug: stateSlug }).lean() : null,
+      categorySlug ? Category.findOne({ slug: categorySlug }).lean() : null,
+    ]);
+    if (stateSlug && !state)
+      return res
+        .status(404)
+        .json({ success: false, message: "State not found with this slug" });
+    if (categorySlug && !category)
+      return res
+        .status(404)
+        .json({ success: false, message: "Category not found with this slug" });
+    if (state) filter.state = state._id;
+    if (category) filter.category = category._id;
+    const [total, schemes] = await Promise.all([
+      Scheme.countDocuments(filter),
+      Scheme.find(filter)
         .skip(skip)
         .limit(limit)
         .sort({ createdAt: -1 })
@@ -181,60 +165,53 @@ function getAllSchemes(req, res) {
         .populate("updatedBy", "name email")
         .populate("state", "name slug")
         .populate("category", "name slug")
-        .then((schemes) => {
-          res.status(200).json({
-            success: true,
-            total,
-            length: schemes.length,
-            message: "Schemes fetched successfully",
-            data: schemes,
-          });
-        });
-    })
-    .catch((error) => {
-      if (error.status) {
-        return res.status(error.status).json({
-          success: false,
-          message: error.message,
-        });
-      }
-      res.status(500).json({
-        success: false,
-        message: "An error occurred while fetching schemes.",
-        error: error.message || error,
-      });
+        .lean(),
+    ]);
+    return res.status(200).json({
+      success: true,
+      total,
+      length: schemes.length,
+      message: "Schemes fetched successfully",
+      data: schemes,
     });
-}
+  } catch (error) {
+    return res.status(500).json({
+      success: false,
+      message: "An error occurred while fetching schemes.",
+      error: error.message || error,
+    });
+  }
+};
 
-function getSchemeBySlug(request, response) {
-  const { slug } = request.params;
-  Scheme.findOne({ slug })
-    .populate("author", "name email")
-    .populate("createdBy", "name email")
-    .populate("updatedBy", "name email")
-    .populate("category", "name")
-    .populate("state", "name")
-    .then((scheme) => {
-      if (!scheme) {
-        return response.status(404).json({
-          success: false,
-          message: "Scheme not found.",
-        });
-      }
-      return response.status(200).json({
-        success: true,
-        message: "Scheme fetched successfully.",
-        data: scheme,
-      });
-    })
-    .catch((error) => {
-      return response.status(500).json({
+const getSchemeBySlug = async (req, res) => {
+  try {
+    const { slug } = req.params;
+    const scheme = await Scheme.findOne({ slug })
+      .populate("author", "name email")
+      .populate("createdBy", "name email")
+      .populate("updatedBy", "name email")
+      .populate("category", "name")
+      .populate("state", "name")
+      .lean();
+    if (!scheme) {
+      return res.status(404).json({
         success: false,
-        message: "An error occurred while fetching the scheme.",
-        error: error.message || error,
+        message: "Scheme not found.",
       });
+    }
+    return res.status(200).json({
+      success: true,
+      message: "Scheme fetched successfully.",
+      data: scheme,
     });
-}
+  } catch (error) {
+    return res.status(500).json({
+      success: false,
+      message: "An error occurred while fetching the scheme.",
+      error: error.message || error,
+    });
+  }
+};
 
 function updateSchemeById(request, response) {
   const schemeId = request.params.id;
@@ -379,97 +356,101 @@ function deleteSchemeById(request, response) {
     });
 }
 
-function getSchemesByState(req, res) {
-  State.aggregate([
-    {
-      $lookup: {
-        from: "schemes",
-        localField: "_id",
-        foreignField: "state",
-        as: "schemes",
+const getSchemesByState = async (req, res) => {
+  try {
+    const results = await State.aggregate([
+      { $sort: { name: 1 } },
+      {
+        $lookup: {
+          from: "schemes",
+          let: { stateId: "$_id" },
+          pipeline: [
+            { $match: { $expr: { $eq: ["$state", "$$stateId"] } } },
+            { $count: "count" },
+          ],
+          as: "schemeStats",
+        },
       },
-    },
-    {
-      $lookup: {
-        from: "discussions",
-        localField: "_id",
-        foreignField: "state",
-        as: "discussions",
+      {
+        $lookup: {
+          from: "discussions",
+          let: { stateId: "$_id" },
+          pipeline: [
+            { $match: { $expr: { $eq: ["$state", "$$stateId"] } } },
+            { $count: "count" },
+          ],
+          as: "discussionStats",
+        },
       },
-    },
-    {
-      $addFields: {
-        totalSchemes: { $size: "$schemes" },
-        totalDiscussions: { $size: "$discussions" },
+      {
+        $project: {
+          _id: 0,
+          stateId: "$_id",
+          name: 1,
+          image: 1,
+          slug: 1,
+          totalSchemes: {
+            $ifNull: [{ $arrayElemAt: ["$schemeStats.count", 0] }, 0],
+          },
+          totalDiscussions: {
+            $ifNull: [{ $arrayElemAt: ["$discussionStats.count", 0] }, 0],
+          },
+        },
       },
-    },
-    {
-      $project: {
-        _id: 0,
-        stateId: "$_id",
-        name: 1,
-        image: 1,
-        slug: 1,
-        totalSchemes: 1,
-        totalDiscussions: 1,
-      },
-    },
-    { $sort: { name: 1 } },
-  ])
-    .then((results) => {
-      return res.status(200).json({
-        success: true,
-        data: results,
-      });
-    })
-    .catch((error) => {
-      return res.status(500).json({
-        success: false,
-        message: error.message || "Something went wrong…",
-      });
-    });
-}
+    ]);
 
-function getSchemesByCategory(req, res) {
-  Category.aggregate([
-    {
-      $lookup: {
-        from: "schemes",
-        localField: "_id",
-        foreignField: "category",
-        as: "schemes",
-      },
-    },
-    {
-      $addFields: {
-        totalSchemes: { $size: "$schemes" },
-      },
-    },
-    {
-      $project: {
-        _id: 0,
-        categoryId: "$_id",
-        name: 1,
-        image: 1,
-        slug: 1,
-        totalSchemes: 1,
-      },
-    },
-    { $sort: { name: 1 } },
-  ])
-    .then((results) => {
-      return res.status(200).json({
-        success: true,
-        data: results,
-      });
-    })
-    .catch((error) => {
-      return res.status(500).json({
-        success: false,
-        message: error.message || "Something went wrong…",
-      });
+    return res.status(200).json({
+      success: true,
+      data: results,
     });
-}
+  } catch (error) {
+    return res.status(500).json({
+      success: false,
+      message: error.message || "Something went wrong…",
+    });
+  }
+};
+
+const getSchemesByCategory = async (req, res) => {
+  try {
+    const results = await Category.aggregate([
+      { $sort: { name: 1 } },
+      {
+        $lookup: {
+          from: "schemes",
+          let: { categoryId: "$_id" },
+          pipeline: [
+            { $match: { $expr: { $eq: ["$category", "$$categoryId"] } } },
+            { $count: "count" },
+          ],
+          as: "schemeStats",
+        },
+      },
+      {
+        $project: {
+          _id: 0,
+          categoryId: "$_id",
+          name: 1,
+          image: 1,
+          slug: 1,
+          totalSchemes: {
+            $ifNull: [{ $arrayElemAt: ["$schemeStats.count", 0] }, 0],
+          },
+        },
+      },
+    ]);
+
+    return res.status(200).json({
+      success: true,
+      data: results,
+    });
+  } catch (error) {
+    return res.status(500).json({
+      success: false,
+      message: error.message || "Something went wrong…",
+    });
+  }
+};
 
 function searchScheme(request, response) {
   const { query } = request.query;

@@ -96,6 +96,15 @@ const schemeSchema = new mongoose.Schema(
 );
 
 // Compound index: filter + sort
-schemeSchema.index({ state: 1, category: 1, createdAt: -1 });
+schemeSchema.index({
+  isActive: 1,
+  isDeleted: 1,
+  state: 1,
+  category: 1,
+  createdAt: -1,
+});
+schemeSchema.index({ slug: 1 }); // already included but explicit is fine
+schemeSchema.index({ category: 1, createdAt: -1 });
+schemeSchema.index({ state: 1, createdAt: -1 });
 
 module.exports = mongoose.model("Scheme", schemeSchema);
