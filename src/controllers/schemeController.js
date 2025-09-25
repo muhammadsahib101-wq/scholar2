@@ -214,9 +214,6 @@ const getAllSchemes = async (req, res) => {
           excerpt: 1,
           bannerImage: 1,
           cardImage: 1,
-          link1: 1,
-          link2: 1,
-          link3: 1,
           "author._id": 1,
           "author.name": 1,
           "state._id": 1,
@@ -253,7 +250,6 @@ const getSchemeBySlug = async (req, res) => {
   try {
     const { slug } = req.params;
     const cacheKey = `scheme:${slug}`;
-    const cacheStart = Date.now();
     const cachedData = await redisClient.get(cacheKey);
     if (cachedData) {
       return res.status(200).json({
@@ -262,7 +258,6 @@ const getSchemeBySlug = async (req, res) => {
         data: JSON.parse(cachedData),
       });
     }
-    const queryStart = Date.now();
     const scheme = await Scheme.aggregate([
       { $match: { slug, isActive: true, isDeleted: false } },
       {
@@ -300,6 +295,9 @@ const getSchemeBySlug = async (req, res) => {
           _id: 0,
           schemeTitle: 1,
           slug: 1,
+          link1: 1,
+          link2: 1,
+          link3: 1,
           bannerImage: 1,
           cardImage: 1,
           excerpt: 1,
