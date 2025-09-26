@@ -97,9 +97,9 @@ function createNewScheme(request, response) {
         excerpt,
         seoTitle,
         seoMetaDescription,
-        link1: JSON.parse(link1 || "{}"),
-        link2: JSON.parse(link2 || "{}"),
-        link3: JSON.parse(link3 || "{}"),
+        link1: link1?.trim() || null,
+        link2: link2?.trim() || null,
+        link3: link3?.trim() || null,
       });
       return newScheme.save();
     })
