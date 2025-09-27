@@ -2,6 +2,9 @@ const express = require("express");
 const cors = require("cors");
 const app = express();
 const dotenv = require("dotenv");
+const compression = require("compression");
+app.use(compression());
+
 dotenv.config();
 
 const connectToDb = require("./src/config/dbConnect");

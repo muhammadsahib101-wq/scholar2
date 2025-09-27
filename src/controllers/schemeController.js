@@ -1,7 +1,7 @@
 const redisClient = require("../utils/redis");
 const dotenv = require("dotenv");
 dotenv.config();
-
+const zlib = require("zlib");
 const imagekit = require("../utils/imageKit");
 const State = require("../models/stateSchema");
 const Scheme = require("../models/schemeSchema");
@@ -250,14 +250,19 @@ const getSchemeBySlug = async (req, res) => {
   try {
     const { slug } = req.params;
     const cacheKey = `scheme:${slug}`;
-    const cachedData = await redisClient.get(cacheKey);
-    if (cachedData) {
+
+    // ✅ Try reading compressed data from Redis
+    const cachedBuffer = await redisClient.getBuffer(cacheKey);
+    if (cachedBuffer) {
+      const decompressed = JSON.parse(zlib.gunzipSync(cachedBuffer).toString());
       return res.status(200).json({
         success: true,
         message: "Scheme fetched from cache.",
-        data: JSON.parse(cachedData),
+        data: decompressed,
       });
     }
+
+    // ✅ Fetch from DB
     const scheme = await Scheme.aggregate([
       { $match: { slug, isActive: true, isDeleted: false } },
       { $limit: 1 },
@@ -304,6 +309,7 @@ const getSchemeBySlug = async (req, res) => {
           excerpt: 1,
           seoTitle: 1,
           seoMetaDescription: 1,
+          // ⚠️ remove big fields if not always required
           about: 1,
           objectives: 1,
           textWithHTMLParsing: 1,
@@ -313,17 +319,24 @@ const getSchemeBySlug = async (req, res) => {
           createdAt: 1,
         },
       },
-    ]).maxTimeMS(100);
+    ]);
+
     if (!scheme || scheme.length === 0) {
       return res.status(404).json({
         success: false,
         message: "Scheme not found.",
       });
     }
+
     const schemeData = scheme[0];
-    await redisClient.set(cacheKey, JSON.stringify(schemeData), {
-      EX: 60 * 60 * 24,
-    });
+
+    // ✅ Save compressed in Redis
+    await redisClient.set(
+      cacheKey,
+      zlib.gzipSync(JSON.stringify(schemeData)),
+      { EX: 60 * 60 * 24 } // 24 hrs
+    );
+
     return res.status(200).json({
       success: true,
       message: "Scheme fetched successfully.",
