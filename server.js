@@ -3,7 +3,7 @@ const cors = require("cors");
 const app = express();
 const dotenv = require("dotenv");
 const compression = require("compression");
-app.use(compression());
+
 
 dotenv.config();
 
@@ -15,7 +15,7 @@ const stateRoutes = require("./src/routes/stateRoute");
 const schemeRoutes = require("./src/routes/schemeRoute");
 const categoryRoutes = require("./src/routes/categoryRoute");
 const discussionRoutes = require("./src/routes/discussionRoute");
-
+app.use(compression());
 // express middlewares
 app.use(express.json());
 app.use(express.urlencoded({ extended: true }));
