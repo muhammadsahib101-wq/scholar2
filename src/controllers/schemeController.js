@@ -1,7 +1,7 @@
 const redisClient = require("../utils/redis");
 const dotenv = require("dotenv");
 dotenv.config();
-const zlib = require("zlib");
+
 const imagekit = require("../utils/imageKit");
 const State = require("../models/stateSchema");
 const Scheme = require("../models/schemeSchema");
@@ -250,27 +250,14 @@ const getSchemeBySlug = async (req, res) => {
   try {
     const { slug } = req.params;
     const cacheKey = `scheme:${slug}`;
-
-    // 🔹 Check cache
     const cachedData = await redisClient.get(cacheKey);
     if (cachedData) {
-      try {
-        // decompress buffer → string → JSON
-        const decompressed = zlib.gunzipSync(Buffer.from(cachedData, "base64")).toString();
-        const parsed = JSON.parse(decompressed);
-
-        return res.status(200).json({
-          success: true,
-          message: "Scheme fetched from cache.",
-          data: parsed,
-        });
-      } catch (err) {
-        console.error("❌ Redis Decompression Error:", err);
-        // if cache corrupt, ignore it and fetch fresh
-      }
+      return res.status(200).json({
+        success: true,
+        message: "Scheme fetched from cache.",
+        data: JSON.parse(cachedData),
+      });
     }
-
-    // 🔹 Fetch fresh data
     const scheme = await Scheme.aggregate([
       { $match: { slug, isActive: true, isDeleted: false } },
       { $limit: 1 },
@@ -326,21 +313,17 @@ const getSchemeBySlug = async (req, res) => {
           createdAt: 1,
         },
       },
-    ]);
-
+    ]).maxTimeMS(100);
     if (!scheme || scheme.length === 0) {
       return res.status(404).json({
         success: false,
         message: "Scheme not found.",
       });
     }
-
     const schemeData = scheme[0];
-
-    // 🔹 compress before saving to Redis
-    const compressed = zlib.gzipSync(JSON.stringify(schemeData)).toString("base64");
-    await redisClient.set(cacheKey, compressed, { EX: 60 * 60 * 24 });
-
+    await redisClient.set(cacheKey, JSON.stringify(schemeData), {
+      EX: 60 * 60 * 24,
+    });
     return res.status(200).json({
       success: true,
       message: "Scheme fetched successfully.",
