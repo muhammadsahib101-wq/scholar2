@@ -1,49 +1,70 @@
+// server.js
 const express = require("express");
 const cors = require("cors");
-const app = express();
+const compression = require("compression");
+const helmet = require("helmet");
+const rateLimit = require("express-rate-limit");
 const dotenv = require("dotenv");
-const compression = require("compression"); // ✅ import karo
+const connectToDb = require("./src/config/dbConnect");
+
+// Routes
+const userRoutes = require("./src/routes/userRoute");
+const categoryRoutes = require("./src/routes/categoryRoute");
+const schemeRoutes = require("./src/routes/schemeRoute");
+const stateRoutes = require("./src/routes/stateRoute");
+const discussionRoutes = require("./src/routes/discussionRoute");
+const replyRoutes = require("./src/routes/replyRoute");
 
 dotenv.config();
 
-const connectToDb = require("./src/config/dbConnect");
+const app = express();
 
-const userRoutes = require("./src/routes/userRoute");
-const replyRoutes = require("./src/routes/replyRoute");
-const stateRoutes = require("./src/routes/stateRoute");
-const schemeRoutes = require("./src/routes/schemeRoute");
-const categoryRoutes = require("./src/routes/categoryRoute");
-const discussionRoutes = require("./src/routes/discussionRoute");
+// -------------------- Middlewares -------------------- //
 
-// express middlewares
+// Security headers
+app.use(helmet());
 
-// cors middleware
+// Enable CORS
 app.use(cors());
-app.use(compression());
+
+// Compress JSON responses only (skip images/files)
+app.use(
+  compression({
+    filter: (req, res) => {
+      if (req.headers["x-no-compression"]) return false; // skip if header set
+      return compression.filter(req, res);
+    },
+  })
+);
+
+// Body parser
 app.use(express.json());
 app.use(express.urlencoded({ extended: true }));
 
-// routes middlewares for users
+// Rate limiting (protect against abuse)
+const limiter = rateLimit({
+  windowMs: 60 * 1000, // 1 minute
+  max: 100, // limit each IP to 100 requests per window
+  message: {
+    success: false,
+    message: "Too many requests, please try again later.",
+  },
+});
+app.use("/api", limiter);
+
+// -------------------- Routes -------------------- //
 app.use("/api", userRoutes);
-
-// routes middlewares for categories
 app.use("/api", categoryRoutes);
-
-// routes middlewares for schemes
 app.use("/api", schemeRoutes);
-
-// routes middlewares for states
 app.use("/api", stateRoutes);
-
-// routes middlewares for discussion
 app.use("/api", discussionRoutes);
-
-// routes middlewares for reply
 app.use("/api", replyRoutes);
 
+// -------------------- DB Connect -------------------- //
 connectToDb();
 
-const port = process.env.PORT || 5000;
-app.listen(port, () => {
-  console.log(`Server is listening on port ${port}`);
+// -------------------- Server -------------------- //
+const PORT = process.env.PORT || 5000;
+app.listen(PORT, () => {
+  console.log(`🚀 Server running on port ${PORT}`);
 });
