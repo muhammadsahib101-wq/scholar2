@@ -313,7 +313,7 @@ const getSchemeBySlug = async (req, res) => {
           createdAt: 1,
         },
       },
-    ]);
+    ]).maxTimeMS(100);
     if (!scheme || scheme.length === 0) {
       return res.status(404).json({
         success: false,
@@ -322,7 +322,7 @@ const getSchemeBySlug = async (req, res) => {
     }
     const schemeData = scheme[0];
     await redisClient.set(cacheKey, JSON.stringify(schemeData), {
-      EX: 60 * 60,
+      EX: 60 * 60 * 24,
     });
     return res.status(200).json({
       success: true,
