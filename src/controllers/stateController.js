@@ -85,7 +85,6 @@ function createNewState(request, response) {
 //     });
 //   }
 // };
-
 // In-memory states cache
 let inMemoryStates = null;
 
@@ -94,6 +93,7 @@ const initializeStates = async () => {
   try {
     inMemoryStates = await States.find({}, { _id: 1, name: 1, slug: 1 }).lean();
     await redisClient.set("states:all", JSON.stringify(inMemoryStates), { EX: 60 * 60 * 24 * 7 });
+    console.log("✅ States cache initialized with", inMemoryStates.length, "states");
   } catch (error) {
     console.error("❌ Initialize States Error:", error);
   }
@@ -107,7 +107,8 @@ const changeStream = States.watch();
 changeStream.on("change", async () => {
   try {
     await redisClient.del("states:all");
-    await initializeStates(); // Reload cache
+    await initializeStates();
+    console.log("✅ States cache invalidated and reloaded");
   } catch (error) {
     console.error("❌ Cache Invalidation Error:", error);
   }
@@ -134,7 +135,9 @@ const getAllStates = async (req, res) => {
       });
     }
 
-    const states = await States.find({}, { _id: 1, name: 1, slug: 1 }).lean();
+    const states = await States.find({}, { _id: 1, name: 1, slug: 1 })
+      .lean()
+      .maxTimeMS(50);
     if (!states || states.length === 0) {
       return res.status(404).json({
         success: false,
@@ -143,6 +146,9 @@ const getAllStates = async (req, res) => {
     }
 
     await redisClient.set(cacheKey, JSON.stringify(states), { EX: 60 * 60 * 24 * 7 });
+
+    // Update in-memory cache as fallback
+    inMemoryStates = states;
 
     return res.status(200).json({
       success: true,
