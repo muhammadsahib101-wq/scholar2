@@ -260,6 +260,7 @@ const getSchemeBySlug = async (req, res) => {
     }
     const scheme = await Scheme.aggregate([
       { $match: { slug, isActive: true, isDeleted: false } },
+      { $limit: 1 },
       {
         $lookup: {
           from: "users",
@@ -312,7 +313,6 @@ const getSchemeBySlug = async (req, res) => {
           createdAt: 1,
         },
       },
-      { $limit: 1 },
     ]);
     if (!scheme || scheme.length === 0) {
       return res.status(404).json({
