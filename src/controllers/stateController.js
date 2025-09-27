@@ -86,23 +86,31 @@ function createNewState(request, response) {
 //   }
 // };
 
-// In-memory states cache (declared outside the API)
+// In-memory states cache
 let inMemoryStates = null;
 
 // Initialize states on app startup
 const initializeStates = async () => {
-  inMemoryStates = await States.find({}, { _id: 1, name: 1, slug: 1 }).lean();
-  await redisClient.set("states:all", JSON.stringify(inMemoryStates), { EX: 60 * 60 * 24 * 7 });
+  try {
+    inMemoryStates = await States.find({}, { _id: 1, name: 1, slug: 1 }).lean();
+    await redisClient.set("states:all", JSON.stringify(inMemoryStates), { EX: 60 * 60 * 24 * 7 });
+  } catch (error) {
+    console.error("❌ Initialize States Error:", error);
+  }
 };
 
-// Call during app startup (e.g., in your main server file)
+// Call during app startup (e.g., in main server file)
 initializeStates();
 
 // Cache invalidation with MongoDB Change Streams
 const changeStream = States.watch();
 changeStream.on("change", async () => {
-  await redisClient.del("states:all");
-  await initializeStates(); // Reload cache
+  try {
+    await redisClient.del("states:all");
+    await initializeStates(); // Reload cache
+  } catch (error) {
+    console.error("❌ Cache Invalidation Error:", error);
+  }
 });
 
 const getAllStates = async (req, res) => {
