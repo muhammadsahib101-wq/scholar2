@@ -2,6 +2,7 @@ const express = require("express");
 const cors = require("cors");
 const app = express();
 const dotenv = require("dotenv");
+const compression = require("compression"); // ✅ import karo
 
 dotenv.config();
 
@@ -15,11 +16,12 @@ const categoryRoutes = require("./src/routes/categoryRoute");
 const discussionRoutes = require("./src/routes/discussionRoute");
 
 // express middlewares
-app.use(express.json());
-app.use(express.urlencoded({ extended: true }));
 
 // cors middleware
 app.use(cors());
+app.use(compression());
+app.use(express.json());
+app.use(express.urlencoded({ extended: true }));
 
 // routes middlewares for users
 app.use("/api", userRoutes);
