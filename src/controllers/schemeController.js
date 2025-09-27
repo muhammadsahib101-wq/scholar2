@@ -251,18 +251,26 @@ const getSchemeBySlug = async (req, res) => {
     const { slug } = req.params;
     const cacheKey = `scheme:${slug}`;
 
-    // ✅ Try reading compressed data from Redis
-    const cachedBuffer = await redisClient.getBuffer(cacheKey);
-    if (cachedBuffer) {
-      const decompressed = JSON.parse(zlib.gunzipSync(cachedBuffer).toString());
-      return res.status(200).json({
-        success: true,
-        message: "Scheme fetched from cache.",
-        data: decompressed,
-      });
+    // 🔹 Check cache
+    const cachedData = await redisClient.get(cacheKey);
+    if (cachedData) {
+      try {
+        // decompress buffer → string → JSON
+        const decompressed = zlib.gunzipSync(Buffer.from(cachedData, "base64")).toString();
+        const parsed = JSON.parse(decompressed);
+
+        return res.status(200).json({
+          success: true,
+          message: "Scheme fetched from cache.",
+          data: parsed,
+        });
+      } catch (err) {
+        console.error("❌ Redis Decompression Error:", err);
+        // if cache corrupt, ignore it and fetch fresh
+      }
     }
 
-    // ✅ Fetch from DB
+    // 🔹 Fetch fresh data
     const scheme = await Scheme.aggregate([
       { $match: { slug, isActive: true, isDeleted: false } },
       { $limit: 1 },
@@ -309,7 +317,6 @@ const getSchemeBySlug = async (req, res) => {
           excerpt: 1,
           seoTitle: 1,
           seoMetaDescription: 1,
-          // ⚠️ remove big fields if not always required
           about: 1,
           objectives: 1,
           textWithHTMLParsing: 1,
@@ -330,12 +337,9 @@ const getSchemeBySlug = async (req, res) => {
 
     const schemeData = scheme[0];
 
-    // ✅ Save compressed in Redis
-    await redisClient.set(
-      cacheKey,
-      zlib.gzipSync(JSON.stringify(schemeData)),
-      { EX: 60 * 60 * 24 } // 24 hrs
-    );
+    // 🔹 compress before saving to Redis
+    const compressed = zlib.gzipSync(JSON.stringify(schemeData)).toString("base64");
+    await redisClient.set(cacheKey, compressed, { EX: 60 * 60 * 24 });
 
     return res.status(200).json({
       success: true,
