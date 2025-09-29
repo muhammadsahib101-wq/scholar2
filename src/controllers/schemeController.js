@@ -216,6 +216,7 @@ const getAllSchemes = async (req, res) => {
           excerpt: 1,
           bannerImage: 1,
           cardImage: 1,
+          publishedOn: 1,
           "author._id": 1,
           "author.name": 1,
           "state._id": 1,
