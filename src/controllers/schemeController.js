@@ -249,125 +249,34 @@ const getAllSchemes = async (req, res) => {
 };
 
 
-// const getSchemeBySlug = async (req, res) => {
-//   try {
-//     const { slug } = req.params;
-//     const cacheKey = `scheme:${slug}`;
-
-//     // 🔹 Check cache
-//     const cachedData = await redisClient.get(cacheKey);
-//     if (cachedData) {
-//       try {
-//         // decompress buffer → string → JSON
-//         const decompressed = zlib.gunzipSync(Buffer.from(cachedData, "base64")).toString();
-//         const parsed = JSON.parse(decompressed);
-
-//         return res.status(200).json({
-//           success: true,
-//           message: "Scheme fetched from cache.",
-//           data: parsed,
-//         });
-//       } catch (err) {
-//         console.error("❌ Redis Decompression Error:", err);
-//         // if cache corrupt, ignore it and fetch fresh
-//       }
-//     }
-
-//     // 🔹 Fetch fresh data
-//     const scheme = await Scheme.aggregate([
-//       { $match: { slug, isActive: true, isDeleted: false } },
-//       { $limit: 1 },
-//       {
-//         $lookup: {
-//           from: "users",
-//           localField: "author",
-//           foreignField: "_id",
-//           as: "author",
-//           pipeline: [{ $project: { _id: 0, name: 1, email: 1 } }],
-//         },
-//       },
-//       { $unwind: { path: "$author", preserveNullAndEmptyArrays: true } },
-//       {
-//         $lookup: {
-//           from: "categories",
-//           localField: "category",
-//           foreignField: "_id",
-//           as: "category",
-//           pipeline: [{ $project: { _id: 0, name: 1, slug: 1 } }],
-//         },
-//       },
-//       { $unwind: { path: "$category", preserveNullAndEmptyArrays: true } },
-//       {
-//         $lookup: {
-//           from: "states",
-//           localField: "state",
-//           foreignField: "_id",
-//           as: "state",
-//           pipeline: [{ $project: { _id: 0, name: 1, slug: 1 } }],
-//         },
-//       },
-//       { $unwind: { path: "$state", preserveNullAndEmptyArrays: true } },
-//       {
-//         $project: {
-//           _id: 0,
-//           schemeTitle: 1,
-//           slug: 1,
-//           link1: 1,
-//           link2: 1,
-//           link3: 1,
-//           bannerImage: 1,
-//           cardImage: 1,
-//           excerpt: 1,
-//           seoTitle: 1,
-//           seoMetaDescription: 1,
-//           about: 1,
-//           objectives: 1,
-//           textWithHTMLParsing: 1,
-//           author: 1,
-//           category: 1,
-//           state: 1,
-//           createdAt: 1,
-//         },
-//       },
-//     ]);
-
-//     if (!scheme || scheme.length === 0) {
-//       return res.status(404).json({
-//         success: false,
-//         message: "Scheme not found.",
-//       });
-//     }
-
-//     const schemeData = scheme[0];
-
-//     // 🔹 compress before saving to Redis
-//     const compressed = zlib.gzipSync(JSON.stringify(schemeData)).toString("base64");
-//     await redisClient.set(cacheKey, compressed, { EX: 60 * 60 * 24 });
-
-//     return res.status(200).json({
-//       success: true,
-//       message: "Scheme fetched successfully.",
-//       data: schemeData,
-//     });
-//   } catch (error) {
-//     console.error("❌ Get Scheme Error:", error);
-//     return res.status(500).json({
-//       success: false,
-//       message: "An error occurred while fetching the scheme.",
-//       error: error.message || error,
-//     });
-//   }
-// };
-
-const inMemorySchemesBySlug = new Map(); // key = slug, value = scheme object
-
-/**
- * Preload all active schemes into memory (or selectively)
- */
-const initializeSchemesBySlug = async () => {
+const getSchemeBySlug = async (req, res) => {
   try {
-    const schemes = await Scheme.aggregate([
-      { $match: { isActive: true, isDeleted: false } },
+    const { slug } = req.params;
+    const cacheKey = `scheme:${slug}`;
+
+    // 🔹 Check cache
+    const cachedData = await redisClient.get(cacheKey);
+    if (cachedData) {
+      try {
+        // decompress buffer → string → JSON
+        const decompressed = zlib.gunzipSync(Buffer.from(cachedData, "base64")).toString();
+        const parsed = JSON.parse(decompressed);
+
+        return res.status(200).json({
+          success: true,
+          message: "Scheme fetched from cache.",
+          data: parsed,
+        });
+      } catch (err) {
+        console.error("❌ Redis Decompression Error:", err);
+        // if cache corrupt, ignore it and fetch fresh
+      }
+    }
+
+    // 🔹 Fetch fresh data
+    const scheme = await Scheme.aggregate([
+      { $match: { slug, isActive: true, isDeleted: false } },
+      { $limit: 1 },
       {
         $lookup: {
           from: "users",
@@ -422,68 +331,23 @@ const initializeSchemesBySlug = async () => {
       },
     ]);
 
-    schemes.forEach((scheme) => {
-      inMemorySchemesBySlug.set(scheme.slug, scheme);
-    });
-
-    console.log(`✅ Schemes by slug cached: ${inMemorySchemesBySlug.size}`);
-  } catch (err) {
-    console.error("❌ Initialize SchemesBySlug Error:", err);
-  }
-};
-
-// Initialize on startup
-initializeSchemesBySlug();
-
-// Optional: watch changes in schemes/users/categories/states and refresh memory
-Scheme.watch().on("change", initializeSchemesBySlug);
-User.watch().on("change", initializeSchemesBySlug);
-Category.watch().on("change", initializeSchemesBySlug);
-State.watch().on("change", initializeSchemesBySlug);
-
-/**
- * API: Get scheme by slug
- */
-const getSchemeBySlug = async (req, res) => {
-  try {
-    const { slug } = req.params;
-
-    // ✅ Serve from memory
-    if (inMemorySchemesBySlug.has(slug)) {
-      return res.status(200).json({
-        success: true,
-        message: "Scheme fetched from memory.",
-        data: inMemorySchemesBySlug.get(slug),
+    if (!scheme || scheme.length === 0) {
+      return res.status(404).json({
+        success: false,
+        message: "Scheme not found.",
       });
     }
 
-    // Optional: fallback to Redis (if memory empty)
-    const cacheKey = `scheme:${slug}`;
-    const cachedData = await redisClient.get(cacheKey);
-    if (cachedData) {
-      const decompressed = zlib.gunzipSync(Buffer.from(cachedData, "base64")).toString();
-      const parsed = JSON.parse(decompressed);
-      inMemorySchemesBySlug.set(slug, parsed); // warm memory
-      return res.status(200).json({
-        success: true,
-        message: "Scheme fetched from Redis cache.",
-        data: parsed,
-      });
-    }
+    const schemeData = scheme[0];
 
-    // Last resort: hit MongoDB (should rarely happen)
-    await initializeSchemesBySlug();
-    if (inMemorySchemesBySlug.has(slug)) {
-      return res.status(200).json({
-        success: true,
-        message: "Scheme fetched after initialization.",
-        data: inMemorySchemesBySlug.get(slug),
-      });
-    }
+    // 🔹 compress before saving to Redis
+    const compressed = zlib.gzipSync(JSON.stringify(schemeData)).toString("base64");
+    await redisClient.set(cacheKey, compressed, { EX: 60 * 60 * 24 });
 
-    return res.status(404).json({
-      success: false,
-      message: "Scheme not found.",
+    return res.status(200).json({
+      success: true,
+      message: "Scheme fetched successfully.",
+      data: schemeData,
     });
   } catch (error) {
     console.error("❌ Get Scheme Error:", error);
@@ -494,7 +358,6 @@ const getSchemeBySlug = async (req, res) => {
     });
   }
 };
-
 
 
 function updateSchemeById(request, response) {
