@@ -319,6 +319,7 @@ const getSchemeBySlug = async (req, res) => {
           cardImage: 1,
           excerpt: 1,
           seoTitle: 1,
+          publishedOn: 1,
           seoMetaDescription: 1,
           about: 1,
           objectives: 1,
