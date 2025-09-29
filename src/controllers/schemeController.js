@@ -505,79 +505,17 @@ function deleteSchemeById(request, response) {
     });
 }
 
-// const getSchemesByState = async (req, res) => {
-//   try {
-//     const cacheKey = "schemesByState";
-//     const cachedData = await redisClient.get(cacheKey);
-//     if (cachedData) {
-//       return res.status(200).json({
-//         success: true,
-//         message: "Data fetched from cache.",
-//         data: JSON.parse(cachedData),
-//       });
-//     }
-//     const results = await State.aggregate([
-//       { $sort: { name: 1 } },
-//       {
-//         $lookup: {
-//           from: "schemes",
-//           let: { stateId: "$_id" },
-//           pipeline: [
-//             { $match: { $expr: { $in: ["$$stateId", "$state"] } } },
-//             { $count: "count" },
-//           ],
-//           as: "schemeStats",
-//         },
-//       },
-//       {
-//         $lookup: {
-//           from: "discussions",
-//           let: { stateId: "$_id" },
-//           pipeline: [
-//             { $match: { $expr: { $eq: ["$state", "$$stateId"] } } },
-//             { $count: "count" },
-//           ],
-//           as: "discussionStats",
-//         },
-//       },
-//       {
-//         $project: {
-//           _id: 0,
-//           stateId: "$_id",
-//           name: 1,
-//           slug: 1,
-//           image: 1,
-//           totalSchemes: {
-//             $ifNull: [{ $arrayElemAt: ["$schemeStats.count", 0] }, 0],
-//           },
-//           totalDiscussions: {
-//             $ifNull: [{ $arrayElemAt: ["$discussionStats.count", 0] }, 0],
-//           },
-//         },
-//       },
-//     ]);
-//     await redisClient.set(cacheKey, JSON.stringify(results), { EX: 60 * 10 });
-//     return res.status(200).json({
-//       success: true,
-//       message: "Schemes by state fetched successfully.",
-//       data: results,
-//     });
-//   } catch (error) {
-//     console.error("❌ getSchemesByState Error:", error);
-//     return res.status(500).json({
-//       success: false,
-//       message: "An error occurred while fetching schemes by state.",
-//       error: error.message || error,
-//     });
-//   }
-// };
-let inMemorySchemesByState = null;
-
-/**
- * Initialize schemes-by-state cache (Mongo → Redis → Memory)
- */
-const initializeSchemesByState = async () => {
+const getSchemesByState = async (req, res) => {
   try {
+    const cacheKey = "schemesByState";
+    const cachedData = await redisClient.get(cacheKey);
+    if (cachedData) {
+      return res.status(200).json({
+        success: true,
+        message: "Data fetched from cache.",
+        data: JSON.parse(cachedData),
+      });
+    }
     const results = await State.aggregate([
       { $sort: { name: 1 } },
       {
@@ -609,64 +547,20 @@ const initializeSchemesByState = async () => {
           name: 1,
           slug: 1,
           image: 1,
-          totalSchemes: { $ifNull: [{ $arrayElemAt: ["$schemeStats.count", 0] }, 0] },
-          totalDiscussions: { $ifNull: [{ $arrayElemAt: ["$discussionStats.count", 0] }, 0] },
+          totalSchemes: {
+            $ifNull: [{ $arrayElemAt: ["$schemeStats.count", 0] }, 0],
+          },
+          totalDiscussions: {
+            $ifNull: [{ $arrayElemAt: ["$discussionStats.count", 0] }, 0],
+          },
         },
       },
     ]);
-
-    // Update memory + Redis
-    inMemorySchemesByState = results;
-    await redisClient.set("schemesByState", JSON.stringify(results), { EX: 60 * 60 * 24 });
-
-    console.log("✅ SchemesByState cache initialized with", results.length, "states");
-  } catch (error) {
-    console.error("❌ Initialize SchemesByState Error:", error);
-  }
-};
-
-// Run on startup
-initializeSchemesByState();
-
-/**
- * Auto-refresh on changes (optional)
- * You should watch schemes + discussions collections also
- */
-State.watch().on("change", initializeSchemesByState);
-Schemes.watch().on("change", initializeSchemesByState);
-Discussions.watch().on("change", initializeSchemesByState);
-
-/**
- * API: Get Schemes by State
- */
-const getSchemesByState = async (req, res) => {
-  try {
-    // 🚀 Serve from memory if available (fastest ~1ms)
-    if (inMemorySchemesByState) {
-      return res.status(200).json({
-        success: true,
-        message: "Schemes by state fetched from memory.",
-        data: inMemorySchemesByState,
-      });
-    }
-
-    // Redis fallback
-    const cachedData = await redisClient.get("schemesByState");
-    if (cachedData) {
-      inMemorySchemesByState = JSON.parse(cachedData); // warm memory
-      return res.status(200).json({
-        success: true,
-        message: "Schemes by state fetched from Redis cache.",
-        data: inMemorySchemesByState,
-      });
-    }
-
-    // Last resort (Mongo aggregation, only on cold start)
-    await initializeSchemesByState();
+    await redisClient.set(cacheKey, JSON.stringify(results), { EX: 60 * 10 });
     return res.status(200).json({
       success: true,
-      message: "Schemes by state fetched after initialization.",
-      data: inMemorySchemesByState,
+      message: "Schemes by state fetched successfully.",
+      data: results,
     });
   } catch (error) {
     console.error("❌ getSchemesByState Error:", error);
