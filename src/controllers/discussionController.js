@@ -5,31 +5,34 @@ dotenv.config();
 const Discussion = require("../models/discussionSchema");
 
 function createDiscussion(request, response) {
-  const userId = request.user.id;
-  const schemeId = request.body.schemeId;
   const discussionData = {
     ...request.body,
-    scheme: schemeId,
-    createdBy: userId,
-    updatedBy: userId,
+    scheme: request.body.scheme
   };
+
   Discussion.create(discussionData)
     .then((discussion) => {
       return response.status(201).send({
         success: true,
-        message: "new discussion is created",
-        data: discussion,
+        message: "New discussion created",
+        data: discussion
       });
     })
     .catch((error) => {
+      if (error.name === "ValidationError") {
+        return response.status(400).send({
+          success: false,
+          message: "Validation error",
+          error: error.message
+        });
+      }
       return response.status(500).send({
         success: false,
-        message: "new discussion is not created",
-        error: error.message || error,
+        message: "New discussion could not be created",
+        error: error.message || error
       });
     });
 }
-
 function getAllDiscussions(request, response) {
   const skip = parseInt(request.query.skip) || 0;
   const limit = parseInt(request.query.limit) || 6;

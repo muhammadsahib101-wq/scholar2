@@ -12,7 +12,6 @@ const discussionSchema = new mongoose.Schema(
       required: [true, "Discussion title is required"],
       trim: true,
     },
-    slug: { type: String, unique: true, lowercase: true },
     discussionInBrief: {
       type: String,
       required: [true, "Brief Discussion title is required"],
@@ -27,11 +26,11 @@ const discussionSchema = new mongoose.Schema(
       type: String,
       required: [true, "Phone Number is required"],
       trim: true,
+      match: [/^\d{10}$/, "Mobile number must be 10 digits"], // Optional validation
     },
     gender: {
       type: String,
       enum: ["Male", "Female", "Transgender"],
-      default: "",
       required: [true, "Gender is required"],
     },
     dateOfBirth: {
@@ -48,7 +47,6 @@ const discussionSchema = new mongoose.Schema(
         "Schedule Tribe",
         "Other...",
       ],
-      default: "",
       required: [true, "Cast is required"],
     },
     religion: {
@@ -57,13 +55,11 @@ const discussionSchema = new mongoose.Schema(
         "Buddhist",
         "Christian",
         "Hindu",
-        "Muslim",
         "Jain",
         "Sikh",
-        "Other...",
+        "Other..."
       ],
-      default: "",
-      required: [true, "Cast is required"],
+      required: [true, "Religion is required"]
     },
     houseNumber: { type: String },
     locality: { type: String },
@@ -74,20 +70,21 @@ const discussionSchema = new mongoose.Schema(
     state: {
       type: mongoose.Schema.Types.ObjectId,
       ref: "States",
-      required: true,
+      required: true
     },
     pinCode: { type: String, required: [true, "Pincode is required"] },
     createdBy: {
       type: mongoose.Schema.Types.ObjectId,
-      ref: "Users",
-      required: true,
+      ref: "Users"
     },
     updatedBy: {
       type: mongoose.Schema.Types.ObjectId,
-      ref: "Users",
-    },
+      ref: "Users"
+    }
   },
   { timestamps: true }
 );
+
+discussionSchema.index({ scheme: 1, createdAt: -1 });
 
 module.exports = mongoose.model("Discussion", discussionSchema);

@@ -1,27 +1,59 @@
 const Reply = require("../models/replySchema");
+const Discussion = require("../models/discussionSchema");
 
-function createReply(request, response) {
-  const replyData = request.body;
-  Reply.create(replyData)
-    .then((reply) => {
-      return response.status(201).send({
-        success: true,
-        message: "Reply created successfully",
-        data: reply,
-      });
-    })
-    .catch((error) => {
-      return response.status(400).send({
+async function createReply(req, res) {
+  try {
+    const { discussionId, yourName, yourEmail, subject, comment } = req.body;
+
+    if (!discussionId || !comment) {
+      return res.status(400).json({
         success: false,
-        message: "Failed to create reply",
-        error: error.message || error,
+        message: "Discussion ID and comment are required",
       });
+    }
+
+    const discussionExists = await Discussion.findById(discussionId);
+    if (!discussionExists) {
+      return res.status(400).json({
+        success: false,
+        message: "Invalid discussion ID",
+      });
+    }
+
+    const newReply = await Reply.create({
+      discussionId,
+      yourName,
+      yourEmail,
+      subject,
+      comment,
     });
+
+    return res.status(201).json({
+      success: true,
+      message: "Reply created successfully",
+      data: newReply,
+    });
+  } catch (error) {
+    console.error("Create Reply Error:", error.stack);
+    if (error.code === 11000) {
+      return res.status(400).json({
+        success: false,
+        message: "Duplicate key error",
+        error: error.message,
+      });
+    }
+    return res.status(500).json({
+      success: false,
+      message: "Failed to create reply",
+      error: error.message,
+    });
+  }
 }
 
+module.exports = createReply;
 function getAllReplies(request, response) {
   Reply.find({})
-    .populate("discussion", "discussionTitle")
+    .populate("discussionId", "discussionTitle")
     .then((replies) => {
       return response.status(200).send({
         success: true,
@@ -42,7 +74,7 @@ function getAllReplies(request, response) {
 function getReplyById(request, response) {
   const replyId = request.params.id;
   Reply.findById(replyId)
-    .populate("discussion", "discussionTitle")
+    .populate("discussionId", "discussionTitle")
     .then((reply) => {
       if (!reply) {
         return response.status(404).send({

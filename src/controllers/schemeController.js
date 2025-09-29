@@ -210,6 +210,7 @@ const getAllSchemes = async (req, res) => {
       { $unwind: "$category" },
       {
         $project: {
+          _id: 1, 
           schemeTitle: 1,
           slug: 1,
           createdAt: 1,
@@ -310,7 +311,7 @@ const getSchemeBySlug = async (req, res) => {
       { $unwind: { path: "$state", preserveNullAndEmptyArrays: true } },
       {
         $project: {
-          _id: 0,
+          _id: 1,
           schemeTitle: 1,
           slug: 1,
           link1: 1,
