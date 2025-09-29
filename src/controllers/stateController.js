@@ -85,39 +85,129 @@ function createNewState(request, response) {
 //     });
 //   }
 // };
+
 // In-memory states cache
+// let inMemoryStates = null;
+
+// // Initialize states on app startup
+// const initializeStates = async () => {
+//   try {
+//     inMemoryStates = await States.find({}, { _id: 1, name: 1, slug: 1 }).lean();
+//     await redisClient.set("states:all", JSON.stringify(inMemoryStates), { EX: 60 * 60 * 24 * 7 });
+//     console.log("✅ States cache initialized with", inMemoryStates.length, "states");
+//   } catch (error) {
+//     console.error("❌ Initialize States Error:", error);
+//   }
+// };
+
+// // Call during app startup (e.g., in main server file)
+// initializeStates();
+
+// // Cache invalidation with MongoDB Change Streams
+// const changeStream = States.watch();
+// changeStream.on("change", async () => {
+//   try {
+//     await redisClient.del("states:all");
+//     await initializeStates();
+//     console.log("✅ States cache invalidated and reloaded");
+//   } catch (error) {
+//     console.error("❌ Cache Invalidation Error:", error);
+//   }
+// });
+
+// const getAllStates = async (req, res) => {
+//   try {
+//     // Use in-memory data if available
+//     if (inMemoryStates) {
+//       return res.status(200).json({
+//         success: true,
+//         message: "States fetched from memory.",
+//         data: inMemoryStates,
+//       });
+//     }
+
+//     const cacheKey = "states:all";
+//     const cachedData = await redisClient.get(cacheKey);
+//     if (cachedData) {
+//       return res.status(200).json({
+//         success: true,
+//         message: "All states fetched from cache.",
+//         data: JSON.parse(cachedData),
+//       });
+//     }
+
+//     const states = await States.find({}, { _id: 1, name: 1, slug: 1 })
+//       .lean()
+//       .maxTimeMS(50);
+//     if (!states || states.length === 0) {
+//       return res.status(404).json({
+//         success: false,
+//         message: "No states found.",
+//       });
+//     }
+
+//     await redisClient.set(cacheKey, JSON.stringify(states), { EX: 60 * 60 * 24 * 7 });
+
+//     // Update in-memory cache as fallback
+//     inMemoryStates = states;
+
+//     return res.status(200).json({
+//       success: true,
+//       message: "All states fetched successfully.",
+//       data: states,
+//     });
+//   } catch (error) {
+//     console.error("❌ Get States Error:", error);
+//     return res.status(500).json({
+//       success: false,
+//       message: "An error occurred while fetching states.",
+//       error: error.message || error,
+//     });
+//   }
+// };
 let inMemoryStates = null;
 
-// Initialize states on app startup
+/**
+ * Initialize states cache (Mongo → Redis → Memory)
+ */
 const initializeStates = async () => {
   try {
-    inMemoryStates = await States.find({}, { _id: 1, name: 1, slug: 1 }).lean();
-    await redisClient.set("states:all", JSON.stringify(inMemoryStates), { EX: 60 * 60 * 24 * 7 });
-    console.log("✅ States cache initialized with", inMemoryStates.length, "states");
+    const states = await States.find({}, { _id: 1, name: 1, slug: 1 }).lean();
+
+    // Update both Redis + memory
+    inMemoryStates = states;
+    await redisClient.set("states:all", JSON.stringify(states), { EX: 60 * 60 * 24 * 7 });
+
+    console.log("✅ States cache initialized with", states.length, "states");
   } catch (error) {
     console.error("❌ Initialize States Error:", error);
   }
 };
 
-// Call during app startup (e.g., in main server file)
+// Call during app startup
 initializeStates();
 
-// Cache invalidation with MongoDB Change Streams
+/**
+ * MongoDB Change Stream → Auto-refresh caches
+ */
 const changeStream = States.watch();
 changeStream.on("change", async () => {
   try {
     await redisClient.del("states:all");
     await initializeStates();
-    console.log("✅ States cache invalidated and reloaded");
+    console.log("♻️ States cache invalidated and reloaded");
   } catch (error) {
     console.error("❌ Cache Invalidation Error:", error);
   }
 });
 
+/**
+ * API: Get All States
+ */
 const getAllStates = async (req, res) => {
   try {
-    // Use in-memory data if available
-    if (inMemoryStates) {
+    // 🚀 Always return from memory if available (fastest)
+    if (inMemoryStates && inMemoryStates.length > 0) {
       return res.status(200).json({
         success: true,
         message: "States fetched from memory.",
@@ -125,34 +215,33 @@ const getAllStates = async (req, res) => {
       });
     }
 
-    const cacheKey = "states:all";
-    const cachedData = await redisClient.get(cacheKey);
+    // Redis fallback (cold start or memory cleared)
+    const cachedData = await redisClient.get("states:all");
     if (cachedData) {
+      inMemoryStates = JSON.parse(cachedData); // warm up memory
       return res.status(200).json({
         success: true,
-        message: "All states fetched from cache.",
-        data: JSON.parse(cachedData),
+        message: "States fetched from Redis cache.",
+        data: inMemoryStates,
       });
     }
 
-    const states = await States.find({}, { _id: 1, name: 1, slug: 1 })
-      .lean()
-      .maxTimeMS(50);
-    if (!states || states.length === 0) {
+    // MongoDB fallback (should rarely hit this)
+    const states = await States.find({}, { _id: 1, name: 1, slug: 1 }).lean();
+    if (!states.length) {
       return res.status(404).json({
         success: false,
         message: "No states found.",
       });
     }
 
-    await redisClient.set(cacheKey, JSON.stringify(states), { EX: 60 * 60 * 24 * 7 });
-
-    // Update in-memory cache as fallback
+    // Update caches
     inMemoryStates = states;
+    await redisClient.set("states:all", JSON.stringify(states), { EX: 60 * 60 * 24 * 7 });
 
     return res.status(200).json({
       success: true,
-      message: "All states fetched successfully.",
+      message: "States fetched from MongoDB.",
       data: states,
     });
   } catch (error) {
