@@ -338,6 +338,8 @@ const getSchemeBySlug = async (req, res) => {
           category: 1,
           state: 1,
           createdAt: 1,
+          isFeatured: 1,
+          disclaimer: 1,
         },
       },
     ]);
