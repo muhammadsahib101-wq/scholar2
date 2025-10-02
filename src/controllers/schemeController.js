@@ -258,28 +258,8 @@ const getAllSchemes = async (req, res) => {
 const getSchemeBySlug = async (req, res) => {
   try {
     const { slug } = req.params;
-    const cacheKey = `scheme:${slug}`;
 
-    // 🔹 Check cache
-    const cachedData = await redisClient.get(cacheKey);
-    if (cachedData) {
-      try {
-        // decompress buffer → string → JSON
-        const decompressed = zlib.gunzipSync(Buffer.from(cachedData, "base64")).toString();
-        const parsed = JSON.parse(decompressed);
-
-        return res.status(200).json({
-          success: true,
-          message: "Scheme fetched from cache.",
-          data: parsed,
-        });
-      } catch (err) {
-        console.error("❌ Redis Decompression Error:", err);
-        // if cache corrupt, ignore it and fetch fresh
-      }
-    }
-
-    // 🔹 Fetch fresh data
+    // 🔹 Fetch fresh data directly from DB
     const scheme = await Scheme.aggregate([
       { $match: { slug, isActive: true, isDeleted: false } },
       { $limit: 1 },
@@ -292,7 +272,6 @@ const getSchemeBySlug = async (req, res) => {
           pipeline: [{ $project: { _id: 0, name: 1, email: 1 } }],
         },
       },
-      { $unwind: { path: "$author", preserveNullAndEmptyArrays: true } },
       {
         $lookup: {
           from: "categories",
@@ -302,17 +281,15 @@ const getSchemeBySlug = async (req, res) => {
           pipeline: [{ $project: { _id: 0, name: 1, slug: 1 } }],
         },
       },
-      { $unwind: { path: "$category", preserveNullAndEmptyArrays: true } },
       {
         $lookup: {
           from: "states",
           localField: "state",
           foreignField: "_id",
           as: "state",
-          pipeline: [{ $project: { _id: 0, name: 1, slug: 1 } }],
+          pipeline: [{ $project: { _id: 1, name: 1, slug: 1 } }],
         },
       },
-      { $unwind: { path: "$state", preserveNullAndEmptyArrays: true } },
       {
         $project: {
           _id: 1,
@@ -351,16 +328,10 @@ const getSchemeBySlug = async (req, res) => {
       });
     }
 
-    const schemeData = scheme[0];
-
-    // 🔹 compress before saving to Redis
-    const compressed = zlib.gzipSync(JSON.stringify(schemeData)).toString("base64");
-    await redisClient.set(cacheKey, compressed, { EX: 60 * 30 });
-
     return res.status(200).json({
       success: true,
       message: "Scheme fetched successfully.",
-      data: schemeData,
+      data: scheme[0],
     });
   } catch (error) {
     console.error("❌ Get Scheme Error:", error);
@@ -371,6 +342,7 @@ const getSchemeBySlug = async (req, res) => {
     });
   }
 };
+
 
 
 function updateSchemeById(request, response) {
