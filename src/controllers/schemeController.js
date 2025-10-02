@@ -355,7 +355,7 @@ const getSchemeBySlug = async (req, res) => {
 
     // 🔹 compress before saving to Redis
     const compressed = zlib.gzipSync(JSON.stringify(schemeData)).toString("base64");
-    await redisClient.set(cacheKey, compressed, { EX: 60 * 60 * 24 });
+    await redisClient.set(cacheKey, compressed, { EX: 60 * 30 });
 
     return res.status(200).json({
       success: true,
