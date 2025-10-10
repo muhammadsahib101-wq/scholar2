@@ -379,7 +379,7 @@ function updateSchemeById(request, response) {
   const schemeId = request.params.id;
   const userId = request.user.id;
 
-  // ✅ Utility: Safely parse if string
+  // ✅ Utility: Safely parse if string, else return object as-is
   const parseIfString = (value) => {
     try {
       return typeof value === "string" ? JSON.parse(value) : value;
@@ -435,7 +435,7 @@ function updateSchemeById(request, response) {
     ...(seoTitle && { seoTitle }),
     ...(seoMetaDescription && { seoMetaDescription }),
 
-    // ✅ Handle links safely (object or JSON string)
+    // ✅ Parse links safely
     ...(link1 && { link1: parseIfString(link1) }),
     ...(link2 && { link2: parseIfString(link2) }),
     ...(link3 && { link3: parseIfString(link3) }),
@@ -444,13 +444,11 @@ function updateSchemeById(request, response) {
   const files = request.files;
   const uploadPromises = [];
 
+  // Handle banner image upload
   if (files?.bannerImage?.[0]) {
     const bannerImage = files.bannerImage[0];
     const uploadPromise = imagekit
-      .upload({
-        file: bannerImage.buffer,
-        fileName: bannerImage.originalname,
-      })
+      .upload({ file: bannerImage.buffer, fileName: bannerImage.originalname })
       .then((uploadResponse) => {
         updateData.bannerImage = {
           url: uploadResponse.url,
@@ -460,13 +458,11 @@ function updateSchemeById(request, response) {
     uploadPromises.push(uploadPromise);
   }
 
+  // Handle card image upload
   if (files?.cardImage?.[0]) {
     const cardImage = files.cardImage[0];
     const uploadPromise = imagekit
-      .upload({
-        file: cardImage.buffer,
-        fileName: cardImage.originalname,
-      })
+      .upload({ file: cardImage.buffer, fileName: cardImage.originalname })
       .then((uploadResponse) => {
         updateData.cardImage = {
           url: uploadResponse.url,
@@ -493,6 +489,11 @@ function updateSchemeById(request, response) {
         });
       }
 
+      // ✅ Fix any old stringified links on-the-fly
+      updatedScheme.link1 = parseIfString(updatedScheme.link1);
+      updatedScheme.link2 = parseIfString(updatedScheme.link2);
+      updatedScheme.link3 = parseIfString(updatedScheme.link3);
+
       return response.status(200).json({
         success: true,
         message: "Scheme updated successfully",
@@ -508,6 +509,7 @@ function updateSchemeById(request, response) {
       });
     });
 }
+
 
 
 function deleteSchemeById(request, response) {
