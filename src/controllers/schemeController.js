@@ -326,6 +326,20 @@ const getSchemeBySlug = async (req, res) => {
       });
     }
 
+   // ✅ Fix here: Parse links if they’re stored as strings
+    const data = scheme[0];
+    const parseIfString = (v) => {
+      try {
+        return typeof v === "string" ? JSON.parse(v) : v;
+      } catch {
+        return v;
+      }
+    };
+
+    data.link1 = parseIfString(data.link1);
+    data.link2 = parseIfString(data.link2);
+    data.link3 = parseIfString(data.link3);
+
     return res.status(200).json({
       success: true,
       message: "Scheme fetched successfully.",
