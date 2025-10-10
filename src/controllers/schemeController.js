@@ -10,13 +10,6 @@ const Scheme = require("../models/schemeSchema");
 const Category = require("../models/categorySchema");
 
 function createNewScheme(request, response) {
-const parseIfString = (value) => {
-  try {
-    return typeof value === "string" ? JSON.parse(value) : value;
-  } catch {
-    return value;
-  }
-};
   const {
     schemeTitle,
     publishedOn,
@@ -39,9 +32,7 @@ const parseIfString = (value) => {
     link2,
     link3,
   } = request.body;
-console.log(link1,
-    link2,
-    link3,)
+
   const userId = request.user.id;
   const bannerImageFile = request.files?.bannerImage?.[0];
   const cardImageFile = request.files?.cardImage?.[0];
@@ -108,15 +99,13 @@ console.log(link1,
         excerpt,
         seoTitle,
         seoMetaDescription,
-   link1: parseIfString(link1) || null,
-  link2: parseIfString(link2) || null,
-  link3: parseIfString(link3) || null,
+        link1: link1?.trim() || null,
+        link2: link2?.trim() || null,
+        link3: link3?.trim() || null,
       });
-  
       return newScheme.save();
     })
     .then((savedScheme) => {
-console.log("Saved Scheme:", savedScheme);
       return Scheme.findById(savedScheme._id)
         .populate("author", "name email")
         .populate("createdBy", "name email")
@@ -223,9 +212,6 @@ const getAllSchemes = async (req, res) => {
           helplineNumber: 1,
           frequentlyAskedQuestions: 1,
           sourcesAndReferences: 1,
-          link1: 1,
-          link2: 1,
-          link3: 1,
           "author._id": 1,
           "author.name": 1,
           "state._id": 1,
@@ -241,22 +227,6 @@ const getAllSchemes = async (req, res) => {
     const countQuery = Scheme.countDocuments(filter);
     const [schemes, total] = await Promise.all([schemesQuery, countQuery]);
 
-    // ✅ Define the parser BEFORE using it
-    const parseIfString = (v) => {
-      try {
-        return typeof v === "string" ? JSON.parse(v) : v;
-      } catch {
-        return v;
-      }
-    };
-
-    // ✅ Parse links safely for all schemes
-    schemes.forEach((scheme) => {
-      scheme.link1 = parseIfString(scheme.link1);
-      scheme.link2 = parseIfString(scheme.link2);
-      scheme.link3 = parseIfString(scheme.link3);
-    });
-
     return res.status(200).json({
       success: true,
       total,
@@ -264,8 +234,8 @@ const getAllSchemes = async (req, res) => {
       message: "Schemes fetched successfully",
       data: schemes,
     });
+
   } catch (error) {
-    console.error("❌ Get All Schemes Error:", error);
     return res.status(500).json({
       success: false,
       message: "An error occurred while fetching schemes.",
@@ -273,7 +243,6 @@ const getAllSchemes = async (req, res) => {
     });
   }
 };
-
 
 
 const getSchemeBySlug = async (req, res) => {
@@ -349,20 +318,6 @@ const getSchemeBySlug = async (req, res) => {
       });
     }
 
-   // ✅ Fix here: Parse links if they’re stored as strings
-    const data = scheme[0];
-    const parseIfString = (v) => {
-      try {
-        return typeof v === "string" ? JSON.parse(v) : v;
-      } catch {
-        return v;
-      }
-    };
-
-    data.link1 = parseIfString(data.link1);
-    data.link2 = parseIfString(data.link2);
-    data.link3 = parseIfString(data.link3);
-
     return res.status(200).json({
       success: true,
       message: "Scheme fetched successfully.",
@@ -378,129 +333,139 @@ const getSchemeBySlug = async (req, res) => {
   }
 };
 
-const updateSchemeById = async (request, response) => {
-  try {
-    const schemeId = request.params.id;
-    const userId = request.user.id;
-    const files = request.files;
+function updateSchemeById(request, response) {
+  const schemeId = request.params.id;
+  const userId = request.user.id;
 
-    // ✅ Utility: safely parse JSON strings
-    const parseIfString = (value) => {
-      try {
-        return typeof value === "string" ? JSON.parse(value) : value;
-      } catch {
-        return value;
-      }
-    };
-
-    // ✅ Utility: get ObjectId from string or object
-    const getObjectId = (value) => {
-      if (!value) return null;
-      const parsed = parseIfString(value);
-      if (typeof parsed === "string") return parsed; // assume ObjectId string
-      if (typeof parsed === "object" && parsed._id) return parsed._id; // extract _id
-      return parsed;
-    };
-
-    const {
-      schemeTitle,
-      about,
-      objectives,
-      textWithHTMLParsing,
-      salientFeatures,
-      helplineNumber,
-      frequentlyAskedQuestions,
-      sourcesAndReferences,
-      disclaimer,
-      publishedOn,
-      category,
-      state,
-      isFeatured,
-      slug,
-      excerpt,
-      seoTitle,
-      seoMetaDescription,
-      link1,
-      link2,
-      link3,
-    } = request.body;
-
-    // Build update data
-    const updateData = {
-      ...(schemeTitle && { schemeTitle }),
-      ...(about && { about: about.trim() }),
-      ...(objectives && { objectives }),
-      ...(textWithHTMLParsing && { textWithHTMLParsing: { htmlDescription: textWithHTMLParsing } }),
-      ...(salientFeatures && { salientFeatures: parseIfString(salientFeatures) }),
-      ...(helplineNumber && { helplineNumber: parseIfString(helplineNumber) }),
-      ...(frequentlyAskedQuestions && { frequentlyAskedQuestions: parseIfString(frequentlyAskedQuestions) }),
-      ...(sourcesAndReferences && { sourcesAndReferences: parseIfString(sourcesAndReferences) }),
-      ...(disclaimer && { disclaimer: parseIfString(disclaimer) }),
-      ...(publishedOn && { publishedOn }),
-      ...(category && { category: getObjectId(category) }),
-      ...(state && { state: Array.isArray(parseIfString(state)) ? parseIfString(state).map(getObjectId) : getObjectId(state) }),
-      ...(isFeatured !== undefined && { isFeatured: parseIfString(isFeatured) }),
-      ...(slug && { slug }),
-      ...(excerpt && { excerpt }),
-      ...(seoTitle && { seoTitle }),
-      ...(seoMetaDescription && { seoMetaDescription }),
-      ...(link1 && { link1: parseIfString(link1) }),
-      ...(link2 && { link2: parseIfString(link2) }),
-      ...(link3 && { link3: parseIfString(link3) }),
-      updatedBy: userId,
-    };
-
-    // Handle image uploads
-    const uploadPromises = [];
-
-    if (files?.bannerImage?.[0]) {
-      const bannerImage = files.bannerImage[0];
-      uploadPromises.push(
-        imagekit.upload({ file: bannerImage.buffer, fileName: bannerImage.originalname })
-          .then((res) => (updateData.bannerImage = { url: res.url, fileId: res.fileId }))
-      );
+  // ✅ Utility to parse JSON safely
+  const parseJSON = (value) => {
+    try {
+      return typeof value === "string" ? JSON.parse(value) : value;
+    } catch {
+      return value;
     }
+  };
 
-    if (files?.cardImage?.[0]) {
-      const cardImage = files.cardImage[0];
-      uploadPromises.push(
-        imagekit.upload({ file: cardImage.buffer, fileName: cardImage.originalname })
-          .then((res) => (updateData.cardImage = { url: res.url, fileId: res.fileId }))
-      );
-    }
+  // ✅ Utility to handle ObjectId
+  const getObjectId = (value) => {
+    const parsed = parseJSON(value);
+    if (!parsed) return null;
+    return typeof parsed === "string" ? parsed : parsed._id || parsed;
+  };
 
-    await Promise.all(uploadPromises);
+  const {
+    schemeTitle,
+    about,
+    objectives,
+    textWithHTMLParsing,
+    salientFeatures,
+    helplineNumber,
+    frequentlyAskedQuestions,
+    sourcesAndReferences,
+    disclaimer,
+    publishedOn,
+    category,
+    state,
+    isFeatured,
+    slug,
+    excerpt,
+    seoTitle,
+    seoMetaDescription,
+    link1,
+    link2,
+    link3,
+  } = request.body;
 
-    // Update scheme and populate references
-    const updatedScheme = await Scheme.findByIdAndUpdate(schemeId, updateData, { new: true })
-      .populate("author", "name email")
-      .populate("createdBy", "name email")
-      .populate("updatedBy", "name email")
-      .populate("category", "name slug")
-      .populate("state", "name slug");
+  const updateData = {
+    ...(schemeTitle && { schemeTitle }),
+    ...(about && { about: about.trim() }),
+    ...(objectives && { objectives }),
+    ...(textWithHTMLParsing && {
+      textWithHTMLParsing: { htmlDescription: textWithHTMLParsing },
+    }),
+    ...(salientFeatures && { salientFeatures: parseJSON(salientFeatures) }),
+    ...(helplineNumber && { helplineNumber: parseJSON(helplineNumber) }),
+    ...(frequentlyAskedQuestions && {
+      frequentlyAskedQuestions: parseJSON(frequentlyAskedQuestions),
+    }),
+    ...(sourcesAndReferences && {
+      sourcesAndReferences: parseJSON(sourcesAndReferences),
+    }),
+    ...(disclaimer && { disclaimer: parseJSON(disclaimer) }),
+    ...(publishedOn && { publishedOn }),
+    updatedBy: userId,
+    ...(category && { category: getObjectId(category) }),
+    ...(state && { state: getObjectId(state) }),
+    ...(isFeatured !== undefined && { isFeatured: parseJSON(isFeatured) }),
+    ...(slug && { slug }),
+    ...(excerpt && { excerpt }),
+    ...(seoTitle && { seoTitle }),
+    ...(seoMetaDescription && { seoMetaDescription }),
+    ...(link1 && { link1: parseJSON(link1) }),
+    ...(link2 && { link2: parseJSON(link2) }),
+    ...(link3 && { link3: parseJSON(link3) }),
+  };
 
-    if (!updatedScheme) {
-      return response.status(404).json({ success: false, message: "Scheme not found" });
-    }
+  const files = request.files;
+  const uploadPromises = [];
 
-    return response.status(200).json({
-      success: true,
-      message: "Scheme updated successfully",
-      data: updatedScheme,
-    });
-
-  } catch (error) {
-    console.error("Update Scheme Error:", error);
-    return response.status(500).json({
-      success: false,
-      message: "Could not update scheme",
-      error: error.message || error,
-    });
+  // Upload bannerImage if present
+  if (files?.bannerImage?.[0]) {
+    const bannerImage = files.bannerImage[0];
+    uploadPromises.push(
+      imagekit
+        .upload({ file: bannerImage.buffer, fileName: bannerImage.originalname })
+        .then((res) => (updateData.bannerImage = { url: res.url, fileId: res.fileId }))
+    );
   }
-};
 
+  // Upload cardImage if present
+  if (files?.cardImage?.[0]) {
+    const cardImage = files.cardImage[0];
+    uploadPromises.push(
+      imagekit
+        .upload({ file: cardImage.buffer, fileName: cardImage.originalname })
+        .then((res) => (updateData.cardImage = { url: res.url, fileId: res.fileId }))
+    );
+  }
 
+  Promise.all(uploadPromises)
+    .then(() =>
+      Scheme.findByIdAndUpdate(schemeId, updateData, { new: true })
+        .populate("author", "name email")
+        .populate("createdBy", "name email")
+        .populate("updatedBy", "name email")
+        .populate("category", "name")
+        .populate("state", "name")
+    )
+    .then((updatedScheme) => {
+      if (!updatedScheme) {
+        return response.status(404).json({
+          success: false,
+          message: "Scheme not found",
+        });
+      }
 
+      // 🔹 Ensure links are objects, not stringified JSON
+      updatedScheme.link1 = parseJSON(updatedScheme.link1);
+      updatedScheme.link2 = parseJSON(updatedScheme.link2);
+      updatedScheme.link3 = parseJSON(updatedScheme.link3);
+
+      return response.status(200).json({
+        success: true,
+        message: "Scheme updated successfully",
+        data: updatedScheme,
+      });
+    })
+    .catch((error) => {
+      console.error("Update Scheme Error:", error);
+      return response.status(500).json({
+        success: false,
+        message: "Could not update scheme",
+        error: error.message || error,
+      });
+    });
+}
 
 
 function deleteSchemeById(request, response) {
