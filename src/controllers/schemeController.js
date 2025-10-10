@@ -220,6 +220,9 @@ const getAllSchemes = async (req, res) => {
           helplineNumber: 1,
           frequentlyAskedQuestions: 1,
           sourcesAndReferences: 1,
+          link1: 1,
+          link2: 1,
+          link3: 1,
           "author._id": 1,
           "author.name": 1,
           "state._id": 1,
@@ -235,6 +238,22 @@ const getAllSchemes = async (req, res) => {
     const countQuery = Scheme.countDocuments(filter);
     const [schemes, total] = await Promise.all([schemesQuery, countQuery]);
 
+    // ✅ Define the parser BEFORE using it
+    const parseIfString = (v) => {
+      try {
+        return typeof v === "string" ? JSON.parse(v) : v;
+      } catch {
+        return v;
+      }
+    };
+
+    // ✅ Parse links safely for all schemes
+    schemes.forEach((scheme) => {
+      scheme.link1 = parseIfString(scheme.link1);
+      scheme.link2 = parseIfString(scheme.link2);
+      scheme.link3 = parseIfString(scheme.link3);
+    });
+
     return res.status(200).json({
       success: true,
       total,
@@ -242,8 +261,8 @@ const getAllSchemes = async (req, res) => {
       message: "Schemes fetched successfully",
       data: schemes,
     });
-
   } catch (error) {
+    console.error("❌ Get All Schemes Error:", error);
     return res.status(500).json({
       success: false,
       message: "An error occurred while fetching schemes.",
@@ -251,6 +270,7 @@ const getAllSchemes = async (req, res) => {
     });
   }
 };
+
 
 
 const getSchemeBySlug = async (req, res) => {
