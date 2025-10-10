@@ -210,6 +210,7 @@ const getAllSchemes = async (req, res) => {
           objectives: 1,
           bannerImage: 1,
           cardImage: 1,
+          isActive: 1,
           link1: 1,
           link2: 1,
           link3: 1,
