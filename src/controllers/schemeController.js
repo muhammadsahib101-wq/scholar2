@@ -32,7 +32,9 @@ function createNewScheme(request, response) {
     link2,
     link3,
   } = request.body;
-
+console.log(link1,
+    link2,
+    link3,)
   const userId = request.user.id;
   const bannerImageFile = request.files?.bannerImage?.[0];
   const cardImageFile = request.files?.cardImage?.[0];
@@ -99,13 +101,19 @@ function createNewScheme(request, response) {
         excerpt,
         seoTitle,
         seoMetaDescription,
-        link1: link1?.trim() || null,
-        link2: link2?.trim() || null,
-        link3: link3?.trim() || null,
+      link1: link1 ? JSON.parse(link1) : null,
+link2: link2 ? JSON.parse(link2) : null,
+link3: link3 ? JSON.parse(link3) : null,
       });
+     console.log("Saving Scheme:", {
+  link1: link1?.trim(),
+  link2: link2?.trim(),
+  link3: link3?.trim(),
+});
       return newScheme.save();
     })
     .then((savedScheme) => {
+console.log("Saved Scheme:", savedScheme);
       return Scheme.findById(savedScheme._id)
         .populate("author", "name email")
         .populate("createdBy", "name email")
@@ -383,9 +391,9 @@ function updateSchemeById(request, response) {
     ...(excerpt && { excerpt }),
     ...(seoTitle && { seoTitle }),
     ...(seoMetaDescription && { seoMetaDescription }),
-    ...(link1 && { link1 }),
-    ...(link2 && { link2 }),
-    ...(link3 && { link3 }),
+    ...(link1 && { link1: JSON.parse(link1) }),
+    ...(link2 && { link2: JSON.parse(link2) }),
+    ...(link3 && { link3: JSON.parse(link3) }),
   };
   const files = request.files;
   const uploadPromises = [];
