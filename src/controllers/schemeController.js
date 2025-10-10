@@ -108,15 +108,11 @@ console.log(link1,
         excerpt,
         seoTitle,
         seoMetaDescription,
-      link1: link1 ? JSON.parse(link1) : null,
-link2: link2 ? JSON.parse(link2) : null,
-link3: link3 ? JSON.parse(link3) : null,
-      });
-     console.log("Saving Scheme:", {
    link1: parseIfString(link1) || null,
   link2: parseIfString(link2) || null,
   link3: parseIfString(link3) || null,
-});
+      });
+  
       return newScheme.save();
     })
     .then((savedScheme) => {
