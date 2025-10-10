@@ -180,8 +180,6 @@ const getAllSchemes = async (req, res) => {
     const schemesQuery = Scheme.aggregate([
       { $match: filter },
       { $sort: { createdAt: -1 } },
-      { $skip: skip },
-      { $limit: limit },
       {
         $lookup: {
           from: "users",
@@ -232,6 +230,8 @@ const getAllSchemes = async (req, res) => {
           "category.slug": 1,
         },
       },
+  { $skip: skip },
+  { $limit: limit },
     ]);
     const countQuery = Scheme.countDocuments(filter);
     const [schemes, total] = await Promise.all([schemesQuery, countQuery]);
@@ -242,7 +242,7 @@ const getAllSchemes = async (req, res) => {
       data: schemes,
     };
     await redisClient.set(cacheKey, JSON.stringify(responseData), {
-      EX: 60 * 30,
+      EX: 60 * 1,
     });
     return res.status(200).json({ success: true, ...responseData });
   } catch (error) {
