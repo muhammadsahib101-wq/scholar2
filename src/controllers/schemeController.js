@@ -378,6 +378,16 @@ const getSchemeBySlug = async (req, res) => {
 function updateSchemeById(request, response) {
   const schemeId = request.params.id;
   const userId = request.user.id;
+
+  // ✅ Utility: Safely parse if string
+  const parseIfString = (value) => {
+    try {
+      return typeof value === "string" ? JSON.parse(value) : value;
+    } catch {
+      return value;
+    }
+  };
+
   const {
     schemeTitle,
     about,
@@ -400,6 +410,7 @@ function updateSchemeById(request, response) {
     link2,
     link3,
   } = request.body;
+
   const updateData = {
     ...(schemeTitle && { schemeTitle }),
     ...(about && { about: about.trim() }),
@@ -407,30 +418,32 @@ function updateSchemeById(request, response) {
     ...(textWithHTMLParsing && {
       textWithHTMLParsing: { htmlDescription: textWithHTMLParsing },
     }),
-    ...(salientFeatures && { salientFeatures: JSON.parse(salientFeatures) }),
-    ...(helplineNumber && { helplineNumber: JSON.parse(helplineNumber) }),
+    ...(salientFeatures && { salientFeatures: parseIfString(salientFeatures) }),
+    ...(helplineNumber && { helplineNumber: parseIfString(helplineNumber) }),
     ...(frequentlyAskedQuestions && {
-      frequentlyAskedQuestions: JSON.parse(frequentlyAskedQuestions),
+      frequentlyAskedQuestions: parseIfString(frequentlyAskedQuestions),
     }),
-    ...(sourcesAndReferences && {
-      sourcesAndReferences: JSON.parse(sourcesAndReferences),
-    }),
-    ...(disclaimer && { disclaimer: JSON.parse(disclaimer) }),
+    ...(sourcesAndReferences && { sourcesAndReferences: parseIfString(sourcesAndReferences) }),
+    ...(disclaimer && { disclaimer: parseIfString(disclaimer) }),
     ...(publishedOn && { publishedOn }),
     updatedBy: userId,
-    ...(category && { category: JSON.parse(category) }),
-    ...(state && { state: JSON.parse(state) }),
-    ...(isFeatured && { isFeatured: JSON.parse(isFeatured) }),
+    ...(category && { category: parseIfString(category) }),
+    ...(state && { state: parseIfString(state) }),
+    ...(isFeatured && { isFeatured: parseIfString(isFeatured) }),
     ...(slug && { slug }),
     ...(excerpt && { excerpt }),
     ...(seoTitle && { seoTitle }),
     ...(seoMetaDescription && { seoMetaDescription }),
-    ...(link1 && { link1: JSON.parse(link1) }),
-    ...(link2 && { link2: JSON.parse(link2) }),
-    ...(link3 && { link3: JSON.parse(link3) }),
+
+    // ✅ Handle links safely (object or JSON string)
+    ...(link1 && { link1: parseIfString(link1) }),
+    ...(link2 && { link2: parseIfString(link2) }),
+    ...(link3 && { link3: parseIfString(link3) }),
   };
+
   const files = request.files;
   const uploadPromises = [];
+
   if (files?.bannerImage?.[0]) {
     const bannerImage = files.bannerImage[0];
     const uploadPromise = imagekit
@@ -446,6 +459,7 @@ function updateSchemeById(request, response) {
       });
     uploadPromises.push(uploadPromise);
   }
+
   if (files?.cardImage?.[0]) {
     const cardImage = files.cardImage[0];
     const uploadPromise = imagekit
@@ -461,6 +475,7 @@ function updateSchemeById(request, response) {
       });
     uploadPromises.push(uploadPromise);
   }
+
   Promise.all(uploadPromises)
     .then(() => {
       return Scheme.findByIdAndUpdate(schemeId, updateData, { new: true })
@@ -477,6 +492,7 @@ function updateSchemeById(request, response) {
           message: "Scheme not found",
         });
       }
+
       return response.status(200).json({
         success: true,
         message: "Scheme updated successfully",
@@ -492,6 +508,7 @@ function updateSchemeById(request, response) {
       });
     });
 }
+
 
 function deleteSchemeById(request, response) {
   const schemeId = request.params.id;
