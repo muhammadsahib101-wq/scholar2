@@ -10,6 +10,13 @@ const Scheme = require("../models/schemeSchema");
 const Category = require("../models/categorySchema");
 
 function createNewScheme(request, response) {
+const parseIfString = (value) => {
+  try {
+    return typeof value === "string" ? JSON.parse(value) : value;
+  } catch {
+    return value;
+  }
+};
   const {
     schemeTitle,
     publishedOn,
@@ -106,9 +113,9 @@ link2: link2 ? JSON.parse(link2) : null,
 link3: link3 ? JSON.parse(link3) : null,
       });
      console.log("Saving Scheme:", {
-  link1: link1?.trim(),
-  link2: link2?.trim(),
-  link3: link3?.trim(),
+   link1: parseIfString(link1) || null,
+  link2: parseIfString(link2) || null,
+  link3: parseIfString(link3) || null,
 });
       return newScheme.save();
     })
