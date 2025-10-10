@@ -140,46 +140,37 @@ const getAllSchemes = async (req, res) => {
     const { stateId, categoryId, stateSlug, categorySlug } = req.query;
     const skip = parseInt(req.query.skip) || 0;
     const limit = parseInt(req.query.limit) || 4;
-    const cacheKey = `schemes:${stateId || ""}:${categoryId || ""}:${
-      stateSlug || ""
-    }:${categorySlug || ""}:skip${skip}:limit${limit}`;
-    const cachedData = await redisClient.get(cacheKey);
-    if (cachedData) {
-      return res.status(200).json({
-        success: true,
-        message: "Schemes fetched from cache.",
-        ...JSON.parse(cachedData),
-      });
-    }
+
     const filter = {};
     let state, category;
+
+    // Resolve state and category by slug if provided
     if (stateSlug || categorySlug) {
       [state, category] = await Promise.all([
-        stateSlug
-          ? State.findOne({ slug: stateSlug }).select("_id").lean()
-          : null,
-        categorySlug
-          ? Category.findOne({ slug: categorySlug }).select("_id").lean()
-          : null,
+        stateSlug ? State.findOne({ slug: stateSlug }).select("_id").lean() : null,
+        categorySlug ? Category.findOne({ slug: categorySlug }).select("_id").lean() : null,
       ]);
     }
+
     if (stateSlug && !state) {
-      return res
-        .status(404)
-        .json({ success: false, message: "State not found with this slug" });
+      return res.status(404).json({ success: false, message: "State not found with this slug" });
     }
     if (categorySlug && !category) {
-      return res
-        .status(404)
-        .json({ success: false, message: "Category not found with this slug" });
+      return res.status(404).json({ success: false, message: "Category not found with this slug" });
     }
+
+    // Build filter
     if (stateId) filter.state = new mongoose.Types.ObjectId(stateId);
     if (categoryId) filter.category = new mongoose.Types.ObjectId(categoryId);
     if (state) filter.state = state._id;
     if (category) filter.category = category._id;
+
+    // Aggregation with pagination applied first
     const schemesQuery = Scheme.aggregate([
       { $match: filter },
       { $sort: { createdAt: -1 } },
+      { $skip: skip },
+      { $limit: limit },
       {
         $lookup: {
           from: "users",
@@ -188,7 +179,7 @@ const getAllSchemes = async (req, res) => {
           as: "author",
         },
       },
-      { $unwind: "$author" },
+      { $unwind: { path: "$author", preserveNullAndEmptyArrays: true } },
       {
         $lookup: {
           from: "states",
@@ -197,6 +188,7 @@ const getAllSchemes = async (req, res) => {
           as: "state",
         },
       },
+      { $unwind: { path: "$state", preserveNullAndEmptyArrays: true } },
       {
         $lookup: {
           from: "categories",
@@ -205,10 +197,10 @@ const getAllSchemes = async (req, res) => {
           as: "category",
         },
       },
-      { $unwind: "$category" },
+      { $unwind: { path: "$category", preserveNullAndEmptyArrays: true } },
       {
         $project: {
-          _id: 1, 
+          _id: 1,
           schemeTitle: 1,
           slug: 1,
           createdAt: 1,
@@ -230,21 +222,19 @@ const getAllSchemes = async (req, res) => {
           "category.slug": 1,
         },
       },
-  { $skip: skip },
-  { $limit: limit },
     ]);
+
     const countQuery = Scheme.countDocuments(filter);
     const [schemes, total] = await Promise.all([schemesQuery, countQuery]);
-    const responseData = {
+
+    return res.status(200).json({
+      success: true,
       total,
       length: schemes.length,
       message: "Schemes fetched successfully",
       data: schemes,
-    };
-    await redisClient.set(cacheKey, JSON.stringify(responseData), {
-      EX: 60 * 1,
     });
-    return res.status(200).json({ success: true, ...responseData });
+
   } catch (error) {
     return res.status(500).json({
       success: false,
@@ -342,8 +332,6 @@ const getSchemeBySlug = async (req, res) => {
     });
   }
 };
-
-
 
 function updateSchemeById(request, response) {
   const schemeId = request.params.id;
