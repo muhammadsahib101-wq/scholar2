@@ -378,140 +378,128 @@ const getSchemeBySlug = async (req, res) => {
   }
 };
 
-function updateSchemeById(request, response) {
-  const schemeId = request.params.id;
-  const userId = request.user.id;
+const updateSchemeById = async (request, response) => {
+  try {
+    const schemeId = request.params.id;
+    const userId = request.user.id;
+    const files = request.files;
 
-  // ✅ Utility: Safely parse if string, else return object as-is
-  const parseIfString = (value) => {
-    try {
-      return typeof value === "string" ? JSON.parse(value) : value;
-    } catch {
-      return value;
-    }
-  };
-
-  const {
-    schemeTitle,
-    about,
-    objectives,
-    textWithHTMLParsing,
-    salientFeatures,
-    helplineNumber,
-    frequentlyAskedQuestions,
-    sourcesAndReferences,
-    disclaimer,
-    publishedOn,
-    category,
-    state,
-    isFeatured,
-    slug,
-    excerpt,
-    seoTitle,
-    seoMetaDescription,
-    link1,
-    link2,
-    link3,
-  } = request.body;
-
-  const updateData = {
-    ...(schemeTitle && { schemeTitle }),
-    ...(about && { about: about.trim() }),
-    ...(objectives && { objectives }),
-    ...(textWithHTMLParsing && {
-      textWithHTMLParsing: { htmlDescription: textWithHTMLParsing },
-    }),
-    ...(salientFeatures && { salientFeatures: parseIfString(salientFeatures) }),
-    ...(helplineNumber && { helplineNumber: parseIfString(helplineNumber) }),
-    ...(frequentlyAskedQuestions && {
-      frequentlyAskedQuestions: parseIfString(frequentlyAskedQuestions),
-    }),
-    ...(sourcesAndReferences && { sourcesAndReferences: parseIfString(sourcesAndReferences) }),
-    ...(disclaimer && { disclaimer: parseIfString(disclaimer) }),
-    ...(publishedOn && { publishedOn }),
-    updatedBy: userId,
-    ...(category && { category: parseIfString(category) }),
-    ...(state && { state: parseIfString(state) }),
-    ...(isFeatured && { isFeatured: parseIfString(isFeatured) }),
-    ...(slug && { slug }),
-    ...(excerpt && { excerpt }),
-    ...(seoTitle && { seoTitle }),
-    ...(seoMetaDescription && { seoMetaDescription }),
-
-    // ✅ Parse links safely
-    ...(link1 && { link1: parseIfString(link1) }),
-    ...(link2 && { link2: parseIfString(link2) }),
-    ...(link3 && { link3: parseIfString(link3) }),
-  };
-
-  const files = request.files;
-  const uploadPromises = [];
-
-  // Handle banner image upload
-  if (files?.bannerImage?.[0]) {
-    const bannerImage = files.bannerImage[0];
-    const uploadPromise = imagekit
-      .upload({ file: bannerImage.buffer, fileName: bannerImage.originalname })
-      .then((uploadResponse) => {
-        updateData.bannerImage = {
-          url: uploadResponse.url,
-          fileId: uploadResponse.fileId,
-        };
-      });
-    uploadPromises.push(uploadPromise);
-  }
-
-  // Handle card image upload
-  if (files?.cardImage?.[0]) {
-    const cardImage = files.cardImage[0];
-    const uploadPromise = imagekit
-      .upload({ file: cardImage.buffer, fileName: cardImage.originalname })
-      .then((uploadResponse) => {
-        updateData.cardImage = {
-          url: uploadResponse.url,
-          fileId: uploadResponse.fileId,
-        };
-      });
-    uploadPromises.push(uploadPromise);
-  }
-
-  Promise.all(uploadPromises)
-    .then(() => {
-      return Scheme.findByIdAndUpdate(schemeId, updateData, { new: true })
-        .populate("author", "name email")
-        .populate("createdBy", "name email")
-        .populate("updatedBy", "name email")
-        .populate("category", "name")
-        .populate("state", "name");
-    })
-    .then((updatedScheme) => {
-      if (!updatedScheme) {
-        return response.status(404).json({
-          success: false,
-          message: "Scheme not found",
-        });
+    // ✅ Utility: safely parse JSON strings
+    const parseIfString = (value) => {
+      try {
+        return typeof value === "string" ? JSON.parse(value) : value;
+      } catch {
+        return value;
       }
+    };
 
-      // ✅ Fix any old stringified links on-the-fly
-      updatedScheme.link1 = parseIfString(updatedScheme.link1);
-      updatedScheme.link2 = parseIfString(updatedScheme.link2);
-      updatedScheme.link3 = parseIfString(updatedScheme.link3);
+    // ✅ Utility: get ObjectId from string or object
+    const getObjectId = (value) => {
+      if (!value) return null;
+      const parsed = parseIfString(value);
+      if (typeof parsed === "string") return parsed; // assume ObjectId string
+      if (typeof parsed === "object" && parsed._id) return parsed._id; // extract _id
+      return parsed;
+    };
 
-      return response.status(200).json({
-        success: true,
-        message: "Scheme updated successfully",
-        data: updatedScheme,
-      });
-    })
-    .catch((error) => {
-      console.error("Update Scheme Error:", error);
-      return response.status(500).json({
-        success: false,
-        message: "Could not update scheme",
-        error: error.message || error,
-      });
+    const {
+      schemeTitle,
+      about,
+      objectives,
+      textWithHTMLParsing,
+      salientFeatures,
+      helplineNumber,
+      frequentlyAskedQuestions,
+      sourcesAndReferences,
+      disclaimer,
+      publishedOn,
+      category,
+      state,
+      isFeatured,
+      slug,
+      excerpt,
+      seoTitle,
+      seoMetaDescription,
+      link1,
+      link2,
+      link3,
+    } = request.body;
+
+    // Build update data
+    const updateData = {
+      ...(schemeTitle && { schemeTitle }),
+      ...(about && { about: about.trim() }),
+      ...(objectives && { objectives }),
+      ...(textWithHTMLParsing && { textWithHTMLParsing: { htmlDescription: textWithHTMLParsing } }),
+      ...(salientFeatures && { salientFeatures: parseIfString(salientFeatures) }),
+      ...(helplineNumber && { helplineNumber: parseIfString(helplineNumber) }),
+      ...(frequentlyAskedQuestions && { frequentlyAskedQuestions: parseIfString(frequentlyAskedQuestions) }),
+      ...(sourcesAndReferences && { sourcesAndReferences: parseIfString(sourcesAndReferences) }),
+      ...(disclaimer && { disclaimer: parseIfString(disclaimer) }),
+      ...(publishedOn && { publishedOn }),
+      ...(category && { category: getObjectId(category) }),
+      ...(state && { state: Array.isArray(parseIfString(state)) ? parseIfString(state).map(getObjectId) : getObjectId(state) }),
+      ...(isFeatured !== undefined && { isFeatured: parseIfString(isFeatured) }),
+      ...(slug && { slug }),
+      ...(excerpt && { excerpt }),
+      ...(seoTitle && { seoTitle }),
+      ...(seoMetaDescription && { seoMetaDescription }),
+      ...(link1 && { link1: parseIfString(link1) }),
+      ...(link2 && { link2: parseIfString(link2) }),
+      ...(link3 && { link3: parseIfString(link3) }),
+      updatedBy: userId,
+    };
+
+    // Handle image uploads
+    const uploadPromises = [];
+
+    if (files?.bannerImage?.[0]) {
+      const bannerImage = files.bannerImage[0];
+      uploadPromises.push(
+        imagekit.upload({ file: bannerImage.buffer, fileName: bannerImage.originalname })
+          .then((res) => (updateData.bannerImage = { url: res.url, fileId: res.fileId }))
+      );
+    }
+
+    if (files?.cardImage?.[0]) {
+      const cardImage = files.cardImage[0];
+      uploadPromises.push(
+        imagekit.upload({ file: cardImage.buffer, fileName: cardImage.originalname })
+          .then((res) => (updateData.cardImage = { url: res.url, fileId: res.fileId }))
+      );
+    }
+
+    await Promise.all(uploadPromises);
+
+    // Update scheme and populate references
+    const updatedScheme = await Scheme.findByIdAndUpdate(schemeId, updateData, { new: true })
+      .populate("author", "name email")
+      .populate("createdBy", "name email")
+      .populate("updatedBy", "name email")
+      .populate("category", "name slug")
+      .populate("state", "name slug");
+
+    if (!updatedScheme) {
+      return response.status(404).json({ success: false, message: "Scheme not found" });
+    }
+
+    return response.status(200).json({
+      success: true,
+      message: "Scheme updated successfully",
+      data: updatedScheme,
     });
-}
+
+  } catch (error) {
+    console.error("Update Scheme Error:", error);
+    return response.status(500).json({
+      success: false,
+      message: "Could not update scheme",
+      error: error.message || error,
+    });
+  }
+};
+
+
 
 
 
