@@ -336,23 +336,6 @@ const getSchemeBySlug = async (req, res) => {
 function updateSchemeById(request, response) {
   const schemeId = request.params.id;
   const userId = request.user.id;
-
-  // ✅ Utility to parse JSON safely
-  const parseJSON = (value) => {
-    try {
-      return typeof value === "string" ? JSON.parse(value) : value;
-    } catch {
-      return value;
-    }
-  };
-
-  // ✅ Utility to handle ObjectId
-  const getObjectId = (value) => {
-    const parsed = parseJSON(value);
-    if (!parsed) return null;
-    return typeof parsed === "string" ? parsed : parsed._id || parsed;
-  };
-
   const {
     schemeTitle,
     about,
@@ -375,7 +358,6 @@ function updateSchemeById(request, response) {
     link2,
     link3,
   } = request.body;
-
   const updateData = {
     ...(schemeTitle && { schemeTitle }),
     ...(about && { about: about.trim() }),
@@ -383,61 +365,69 @@ function updateSchemeById(request, response) {
     ...(textWithHTMLParsing && {
       textWithHTMLParsing: { htmlDescription: textWithHTMLParsing },
     }),
-    ...(salientFeatures && { salientFeatures: parseJSON(salientFeatures) }),
-    ...(helplineNumber && { helplineNumber: parseJSON(helplineNumber) }),
+    ...(salientFeatures && { salientFeatures: JSON.parse(salientFeatures) }),
+    ...(helplineNumber && { helplineNumber: JSON.parse(helplineNumber) }),
     ...(frequentlyAskedQuestions && {
-      frequentlyAskedQuestions: parseJSON(frequentlyAskedQuestions),
+      frequentlyAskedQuestions: JSON.parse(frequentlyAskedQuestions),
     }),
     ...(sourcesAndReferences && {
-      sourcesAndReferences: parseJSON(sourcesAndReferences),
+      sourcesAndReferences: JSON.parse(sourcesAndReferences),
     }),
-    ...(disclaimer && { disclaimer: parseJSON(disclaimer) }),
+    ...(disclaimer && { disclaimer: JSON.parse(disclaimer) }),
     ...(publishedOn && { publishedOn }),
     updatedBy: userId,
-    ...(category && { category: getObjectId(category) }),
-    ...(state && { state: getObjectId(state) }),
-    ...(isFeatured !== undefined && { isFeatured: parseJSON(isFeatured) }),
+    ...(category && { category: JSON.parse(category) }),
+    ...(state && { state: JSON.parse(state) }),
+    ...(isFeatured && { isFeatured: JSON.parse(isFeatured) }),
     ...(slug && { slug }),
     ...(excerpt && { excerpt }),
     ...(seoTitle && { seoTitle }),
     ...(seoMetaDescription && { seoMetaDescription }),
-    ...(link1 && { link1: parseJSON(link1) }),
-    ...(link2 && { link2: parseJSON(link2) }),
-    ...(link3 && { link3: parseJSON(link3) }),
+    ...(link1 && { link1 }),
+    ...(link2 && { link2 }),
+    ...(link3 && { link3 }),
   };
-
   const files = request.files;
   const uploadPromises = [];
-
-  // Upload bannerImage if present
   if (files?.bannerImage?.[0]) {
     const bannerImage = files.bannerImage[0];
-    uploadPromises.push(
-      imagekit
-        .upload({ file: bannerImage.buffer, fileName: bannerImage.originalname })
-        .then((res) => (updateData.bannerImage = { url: res.url, fileId: res.fileId }))
-    );
+    const uploadPromise = imagekit
+      .upload({
+        file: bannerImage.buffer,
+        fileName: bannerImage.originalname,
+      })
+      .then((uploadResponse) => {
+        updateData.bannerImage = {
+          url: uploadResponse.url,
+          fileId: uploadResponse.fileId,
+        };
+      });
+    uploadPromises.push(uploadPromise);
   }
-
-  // Upload cardImage if present
   if (files?.cardImage?.[0]) {
     const cardImage = files.cardImage[0];
-    uploadPromises.push(
-      imagekit
-        .upload({ file: cardImage.buffer, fileName: cardImage.originalname })
-        .then((res) => (updateData.cardImage = { url: res.url, fileId: res.fileId }))
-    );
+    const uploadPromise = imagekit
+      .upload({
+        file: cardImage.buffer,
+        fileName: cardImage.originalname,
+      })
+      .then((uploadResponse) => {
+        updateData.cardImage = {
+          url: uploadResponse.url,
+          fileId: uploadResponse.fileId,
+        };
+      });
+    uploadPromises.push(uploadPromise);
   }
-
   Promise.all(uploadPromises)
-    .then(() =>
-      Scheme.findByIdAndUpdate(schemeId, updateData, { new: true })
+    .then(() => {
+      return Scheme.findByIdAndUpdate(schemeId, updateData, { new: true })
         .populate("author", "name email")
         .populate("createdBy", "name email")
         .populate("updatedBy", "name email")
         .populate("category", "name")
-        .populate("state", "name")
-    )
+        .populate("state", "name");
+    })
     .then((updatedScheme) => {
       if (!updatedScheme) {
         return response.status(404).json({
@@ -445,12 +435,6 @@ function updateSchemeById(request, response) {
           message: "Scheme not found",
         });
       }
-
-      // 🔹 Ensure links are objects, not stringified JSON
-      updatedScheme.link1 = parseJSON(updatedScheme.link1);
-      updatedScheme.link2 = parseJSON(updatedScheme.link2);
-      updatedScheme.link3 = parseJSON(updatedScheme.link3);
-
       return response.status(200).json({
         success: true,
         message: "Scheme updated successfully",
@@ -466,7 +450,6 @@ function updateSchemeById(request, response) {
       });
     });
 }
-
 
 function deleteSchemeById(request, response) {
   const schemeId = request.params.id;
