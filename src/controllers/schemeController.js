@@ -218,6 +218,7 @@ const getAllSchemes = async (req, res) => {
           salientFeatures: 1,
           helplineNumber: 1,
           frequentlyAskedQuestions: 1,
+          textWithHTMLParsing: 1,
           sourcesAndReferences: 1,
           "author._id": 1,
           "author.name": 1,
