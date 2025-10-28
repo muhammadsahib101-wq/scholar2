@@ -7,10 +7,8 @@ const {
   getDiscussionById,
 } = require("../controllers/discussionController");
 
-const createSlug = require("../middlewares/createSlugMiddleware");
-
 // Route to create a new discussion
-router.post("/user/registerDiscussion", createSlug, createDiscussion);
+router.post("/user/registerDiscussion", createDiscussion);
 
 // Route to get all discussions
 router.get("/user/allDiscussions", getAllDiscussions);

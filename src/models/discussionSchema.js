@@ -24,9 +24,8 @@ const discussionSchema = new mongoose.Schema(
     },
     mobileNo: {
       type: String,
-      required: [true, "Phone Number is required"],
       trim: true,
-      match: [/^\d{10}$/, "Mobile number must be 10 digits"], // Optional validation
+      match: [/^\d{10}$/, "Mobile number must be 10 digits"],
     },
     gender: {
       type: String,
@@ -35,7 +34,6 @@ const discussionSchema = new mongoose.Schema(
     },
     dateOfBirth: {
       type: Date,
-      required: [true, "Date of birth is required"],
     },
     cast: {
       type: String,
@@ -47,40 +45,45 @@ const discussionSchema = new mongoose.Schema(
         "Schedule Tribe",
         "Other...",
       ],
-      required: [true, "Cast is required"],
     },
     religion: {
       type: String,
-      enum: [
-        "Buddhist",
-        "Christian",
-        "Hindu",
-        "Jain",
-        "Sikh",
-        "Other..."
-      ],
-      required: [true, "Religion is required"]
+      enum: ["Buddhist", "Christian", "Hindu", "Jain", "Sikh", "Other..."],
     },
     houseNumber: { type: String },
     locality: { type: String },
     city: { type: String },
     wardNumber: { type: String },
     tehsil: { type: String },
-    district: { type: String, required: [true, "District is required"] },
+    district: { type: String },
     state: {
       type: mongoose.Schema.Types.ObjectId,
       ref: "States",
-      required: true
+      required: true,
     },
-    pinCode: { type: String, required: [true, "Pincode is required"] },
+    category: {
+      type: [String],
+      enum: [
+        "Agriculture",
+        "Business",
+        "Education",
+        "Fund Support",
+        "Housing",
+        "Loan",
+        "Politics",
+        "Social Welfare",
+      ],
+      required: [true, "category is required"],
+    },
+    pinCode: { type: String },
     createdBy: {
       type: mongoose.Schema.Types.ObjectId,
-      ref: "Users"
+      ref: "Users",
     },
     updatedBy: {
       type: mongoose.Schema.Types.ObjectId,
-      ref: "Users"
-    }
+      ref: "Users",
+    },
   },
   { timestamps: true }
 );

@@ -2,7 +2,7 @@ const express = require("express");
 const cors = require("cors");
 const app = express();
 const dotenv = require("dotenv");
-const compression = require("compression"); // ✅ import karo
+const compression = require("compression");
 
 dotenv.config();
 

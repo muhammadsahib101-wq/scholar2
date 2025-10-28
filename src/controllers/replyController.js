@@ -4,14 +4,12 @@ const Discussion = require("../models/discussionSchema");
 async function createReply(req, res) {
   try {
     const { discussionId, yourName, yourEmail, subject, comment } = req.body;
-
     if (!discussionId || !comment) {
       return res.status(400).json({
         success: false,
         message: "Discussion ID and comment are required",
       });
     }
-
     const discussionExists = await Discussion.findById(discussionId);
     if (!discussionExists) {
       return res.status(400).json({
@@ -19,7 +17,6 @@ async function createReply(req, res) {
         message: "Invalid discussion ID",
       });
     }
-
     const newReply = await Reply.create({
       discussionId,
       yourName,
@@ -27,7 +24,6 @@ async function createReply(req, res) {
       subject,
       comment,
     });
-
     return res.status(201).json({
       success: true,
       message: "Reply created successfully",
@@ -50,15 +46,25 @@ async function createReply(req, res) {
   }
 }
 
-module.exports = createReply;
 function getAllReplies(request, response) {
-  Reply.find({})
+  const discussionId = request.query.discussionId;
+  if (!discussionId) {
+    return response.status(400).send({
+      success: false,
+      message: "discussionId is required to fetch replies",
+    });
+  }
+  Reply.find({ discussionId })
+    .sort({ createdAt: -1 })
     .populate("discussionId", "discussionTitle")
     .then((replies) => {
       return response.status(200).send({
         success: true,
-        message: "Replies fetched successfully",
         count: replies.length,
+        message:
+          replies.length > 0
+            ? `Replies for discussion ${discussionId} fetched successfully`
+            : "No replies found for this discussion",
         data: replies,
       });
     })
