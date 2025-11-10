@@ -29,26 +29,24 @@ const discussionSchema = new mongoose.Schema(
     },
     gender: {
       type: String,
-      enum: ["Male", "Female", "Transgender"],
-      required: [true, "Gender is required"],
+      // enum: ["Male", "Female", "Transgender"],
     },
     dateOfBirth: {
       type: Date,
     },
     cast: {
       type: String,
-      enum: [
-        "General",
-        "Economically Weaker Section",
-        "Other Backward Class",
-        "Schedule Caste",
-        "Schedule Tribe",
-        "Other...",
-      ],
+      // enum: [
+      //   "General",
+      //   "Economically Weaker Section",
+      //   "Other Backward Class",
+      //   "Schedule Caste",
+      //   "Schedule Tribe",
+      //   "Other...",
+      // ],
     },
     religion: {
       type: String,
-      enum: ["Buddhist", "Christian", "Hindu", "Jain", "Sikh", "Other..."],
     },
     houseNumber: { type: String },
     locality: { type: String },
@@ -59,21 +57,20 @@ const discussionSchema = new mongoose.Schema(
     state: {
       type: mongoose.Schema.Types.ObjectId,
       ref: "States",
-      required: true,
     },
     category: {
       type: [String],
-      enum: [
-        "Agriculture",
-        "Business",
-        "Education",
-        "Fund Support",
-        "Housing",
-        "Loan",
-        "Politics",
-        "Social Welfare",
-      ],
-      required: [true, "category is required"],
+      // enum: [
+      //   "Agriculture",
+      //   "Business",
+      //   "Education",
+      //   "Fund Support",
+      //   "Housing",
+      //   "Loan",
+      //   "Politics",
+      //   "Social Welfare",
+      // ],
+      // required: [true, "category is required"],
     },
     pinCode: { type: String },
     createdBy: {
