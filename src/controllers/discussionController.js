@@ -67,7 +67,7 @@ function getAllDiscussions(request, response) {
 function getDiscussionById(request, response) {
   const discussionId = request.params.id;
   Discussion.findById(discussionId)
-    .populate("scheme", "schemeTitle")
+    .populate("scheme", "schemeTitle schemeDescription")
     .populate("state", "name")
     .populate("createdBy", "name email")
     .populate("updatedBy", "name email")
