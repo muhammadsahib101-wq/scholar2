@@ -41,7 +41,7 @@ function getAllDiscussions(request, response) {
   Discussion.find(filter)
     .skip(skip)
     .limit(limit)
-    .populate("scheme", "schemeTitle")
+    .populate("scheme", "schemeTitle schemeDescription")
     .populate("state", "name")
     .populate("createdBy", "name email")
     .populate("updatedBy", "name email")
